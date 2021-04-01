@@ -9,12 +9,15 @@ public class Main {
         MainWindow mainWindow = new MainWindow();
 
 
-        InputStream inputStream = Main.class.getResourceAsStream("896.nes");
-        URL url = Main.class.getClassLoader().getResource("896.nes");
+        InputStream inputStream = Main.class.getResourceAsStream("nestest.nes");
+        URL url = Main.class.getClassLoader().getResource("nestest.nes");
         System.out.println(url.getPath());
 
 
         NesRom nesRom = new NesRom(inputStream);
         System.out.println(nesRom.header.toString());
+
+        CPU cpu = new CPU();
+        cpu.diasm(nesRom.prg);
     }
 }

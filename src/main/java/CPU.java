@@ -17,6 +17,86 @@ public class CPU {
         bus.write(address, data);
     }
 
+    class Instruction {
+        String name;
+        int length;
+        int cycle;
+    }
+
+    // region 6502 Instruction set
+    // https://pastraiser.com/cpu/6502/6502_opcodes.html
+
+    /**
+     * 指令表，为16x16的矩阵，横坐标和纵坐标为0-F，这里使用一维数组表示
+     * 例如， 0x24是BIT，0x24的十进制为36，在数组中的下标也是36
+     */
+    private final String[] INSTRUCTION_SET = {
+            "BRK", "ORA", "UNK", "UNK", "UNK", "ORA", "ASL", "UNK", "PHP", "ORA", "ASL", "UNK", "UNK", "ORA", "ASL", "UNK",
+            "BPL", "ORA", "UNK", "UNK", "UNK", "ORA", "ASL", "UNK", "CLC", "ORA", "UNK", "UNK", "UNK", "ORA", "ASL", "UNK",
+            "JSR", "AND", "UNK", "UNK", "BIT", "AND", "ROL", "UNK", "PLP", "AND", "ROL", "UNK", "BIT", "AND", "ROL", "UNK",
+            "BMI", "AND", "UNK", "UNK", "UNK", "AND", "ROL", "UNK", "SEC", "AND", "UNK", "UNK", "UNK", "AND", "ROL", "UNK",
+            "RTI", "EOR", "UNK", "UNK", "UNK", "EOR", "LSR", "UNK", "PHA", "EOR", "LSR", "UNK", "JMP", "EOR", "LSR", "UNK",
+            "BVC", "EOR", "UNK", "UNK", "UNK", "EOR", "LSR", "UNK", "CLI", "EOR", "UNK", "UNK", "UNK", "EOR", "LSR", "UNK",
+            "RTS", "ADC", "UNK", "UNK", "UNK", "ADC", "ROR", "UNK", "PLA", "ADC", "ROR", "UNK", "JMP", "ADC", "ROR", "UNK",
+            "BVS", "ADC", "UNK", "UNK", "UNK", "ADC", "ROR", "UNK", "SEI", "ADC", "UNK", "UNK", "UNK", "ADC", "ROR", "UNK",
+            "UNK", "STA", "UNK", "UNK", "STY", "STA", "STX", "UNK", "DEY", "UNK", "TXA", "UNK", "STY", "STA", "STX", "UNK",
+            "BCC", "STA", "UNK", "UNK", "STY", "STA", "STX", "UNK", "TYA", "STA", "TXS", "UNK", "UNK", "STA", "UNK", "UNK",
+            "LDY", "LDA", "LDX", "UNK", "LDY", "LDA", "LDX", "UNK", "TAY", "LDA", "TAX", "UNK", "LDY", "LDA", "LDX", "UNK",
+            "BCS", "LDA", "UNK", "UNK", "LDY", "LDA", "LDX", "UNK", "CLV", "LDA", "TSX", "UNK", "LDY", "LDA", "LDX", "UNK",
+            "CPY", "CMP", "UNK", "UNK", "CPY", "CMP", "DEC", "UNK", "INY", "CMP", "DEX", "UNK", "CPY", "CMP", "DEC", "UNK",
+            "BNE", "CMP", "UNK", "UNK", "UNK", "CMP", "DEC", "UNK", "CLD", "CMP", "UNK", "UNK", "UNK", "CMP", "DEC", "UNK",
+            "CPX", "SBC", "UNK", "UNK", "CPX", "SBC", "INC", "UNK", "INX", "SBC", "NOP", "UNK", "CPX", "SBC", "INC", "UNK",
+            "BEQ", "SBC", "UNK", "UNK", "UNK", "SBC", "INC", "UNK", "SED", "SBC", "UNK", "UNK", "UNK", "SBC", "INC", "UNK",
+    };
+
+    /**
+     * 指令的长度，与上面的指令表一一对应
+     */
+    private final int[] INSTRUCTION_LENGTH = {
+            2, 2, 0, 0, 0, 2, 2, 0, 1, 2, 1, 0, 0, 3, 3, 0,
+            2, 2, 0, 0, 0, 2, 2, 0, 1, 3, 0, 0, 0, 3, 3, 0,
+            3, 2, 0, 0, 2, 2, 2, 0, 1, 2, 1, 0, 3, 3, 3, 0,
+            2, 2, 0, 0, 0, 2, 2, 0, 1, 3, 0, 0, 0, 3, 3, 0,
+            1, 2, 0, 0, 0, 2, 2, 0, 1, 2, 1, 0, 3, 3, 3, 0,
+            2, 2, 0, 0, 0, 2, 2, 0, 1, 3, 0, 0, 0, 3, 3, 0,
+            1, 2, 0, 0, 0, 2, 2, 0, 1, 2, 1, 0, 3, 3, 3, 0,
+            2, 2, 0, 0, 0, 2, 2, 0, 1, 3, 0, 0, 0, 3, 3, 0,
+            0, 2, 0, 0, 2, 2, 2, 0, 1, 0, 1, 0, 3, 3, 3, 0,
+            2, 2, 0, 0, 2, 2, 2, 0, 1, 3, 1, 0, 0, 3, 0, 0,
+            2, 2, 2, 0, 2, 2, 2, 0, 1, 2, 1, 0, 3, 3, 3, 0,
+            2, 2, 0, 0, 2, 2, 2, 0, 1, 3, 1, 0, 3, 3, 3, 0,
+            2, 2, 0, 0, 2, 2, 2, 0, 1, 2, 1, 0, 3, 3, 3, 0,
+            2, 2, 0, 0, 0, 2, 2, 0, 1, 3, 0, 0, 0, 3, 3, 0,
+            2, 2, 0, 0, 2, 2, 2, 0, 1, 2, 1, 0, 3, 3, 3, 0,
+            2, 2, 0, 0, 0, 2, 2, 0, 1, 3, 0, 0, 0, 3, 3, 0
+    };
+
+    /**
+     * 指令的寻址模式
+     */
+    private final int[] INSTRUCTION_ADDRESSING_MODE = {
+            // 0  1   2  3  4  5  6  7  8  9  A  B  C  D  E  F
+            0, 11, 0, 0, 0, 3, 3, 0, 0, 2, 1, 0, 0, 7, 7, 0,
+            6, 12, 0, 0, 0, 4, 4, 0, 0, 9, 0, 0, 0, 8, 8, 0,
+            7, 11, 0, 0, 3, 3, 3, 0, 0, 2, 1, 0, 7, 7, 7, 0,
+            6, 12, 0, 0, 0, 4, 4, 0, 0, 9, 0, 0, 0, 8, 8, 0,
+            0, 11, 0, 0, 0, 3, 3, 0, 0, 2, 1, 0, 7, 7, 7, 0,
+            6, 12, 0, 0, 0, 4, 4, 0, 0, 9, 0, 0, 0, 8, 8, 0,
+            0, 11, 0, 0, 0, 3, 3, 0, 0, 2, 1, 0,10, 7, 7, 0,
+            6, 12, 0, 0, 0, 4, 4, 0, 0, 9, 0, 0, 0, 8, 8, 0,
+            0, 11, 0, 0, 3, 3, 3, 0, 0, 0, 0, 0, 7, 7, 7, 0,
+            6, 12, 0, 0, 4, 4, 5, 0, 0, 9, 0, 0, 0, 8, 0, 0,
+            2, 11, 2, 0, 3, 3, 3, 0, 0, 2, 0, 0, 7, 7, 7, 0,
+            6, 12, 0, 0, 4, 4, 5, 0, 0, 9, 0, 0, 8, 8, 9, 0,
+            2, 11, 0, 0, 3, 3, 3, 0, 0, 2, 0, 0, 7, 7, 7, 0,
+            6, 12, 0, 0, 0, 4, 4, 0, 0, 9, 0, 0, 0, 8, 8, 0,
+            2, 11, 0, 0, 3, 3, 3, 0, 0, 2, 0, 0, 7, 7, 7, 0,
+            6, 12, 0, 0, 0, 4, 4, 0, 0, 9, 0, 0, 0, 8, 8, 0,
+    };
+
+
+    // endregion
+
     // region 寄存器
 
     /**
@@ -51,17 +131,20 @@ public class CPU {
     /**
      * 复位
      */
-    void reset() {}
+    void reset() {
+    }
 
     /**
      * 不可屏蔽中断 Non-Maskable Interrupt
      */
-    void nmi() {}
+    void nmi() {
+    }
 
     /**
      * 可屏蔽中断 Interrupt Request
      */
-    void irq() {}
+    void irq() {
+    }
 
     // endregion
 
@@ -70,41 +153,42 @@ public class CPU {
     /**
      * Carry，进位标志
      */
-    public static final int FLAG_C = (1 << 0);
+    public static byte FLAG_C = 0;
 
     /**
      * Zero
      */
-    public static final int FLAG_Z = (1 << 1);
+    public static byte FLAG_Z = 0;
 
     /**
      * Interrupt Disable
      */
-    public static final int FLAG_I = (1 << 2);
+    public static byte FLAG_I = 0;
 
     /**
      * Decimal Mode
      */
-    public static final int FLAG_D = (1 << 3);
+    public static byte FLAG_D = 0;
 
     /**
      * B flag, 2 bit
      */
-    public static final int FLAG_B = (1 << 4);
+    public static byte FLAG_B = 0;
 
     /**
      * Overflow
      */
-    public static final int FLAG_V = (1 << 6);
+    public static byte FLAG_V = 0;
 
     /**
      * Negative
      */
-    public static final int FLAG_N = (1 << 7);
+    public static byte FLAG_N = 0;
 
     // endregion
 
-    // region 12种取地址方式 Addressing Modes https://zhuanlan.zhihu.com/p/44051504
+    // region 12种寻址模式 Addressing Modes
+    // https://zhuanlan.zhihu.com/p/44051504
 
     /**
      * 隐含寻址 Implied Addressing 单字节指令
@@ -116,7 +200,6 @@ public class CPU {
 
     /**
      * 立即寻址 Immediate Addressing 双字节
-     *
      */
     public byte IMM() {
         absoluteAddress = PC++;
@@ -265,66 +348,256 @@ public class CPU {
 
     // endregion
 
+    private AddressingMode[] tb = new AddressingMode[] {
+            AddressingMode.Implied,             // 0
+            AddressingMode.Accumulator,         // 1
+            AddressingMode.Immediate,           // 2
+            AddressingMode.ZeroPage,            // 3
+            AddressingMode.ZeroPageX,           // 4
+            AddressingMode.ZeroPageY,           // 5
+            AddressingMode.Relative,            // 6
+            AddressingMode.Absolute,            // 7
+            AddressingMode.AbsoluteX,           // 8
+            AddressingMode.AbsoluteY,           // 9
+            AddressingMode.Indirect,            // 10
+            AddressingMode.IndexedIndirectX,    // 11
+            AddressingMode.IndirectIndexedY     // 12
+    };
+
+    enum AddressingMode {
+        Implied(0),
+        Accumulator(1),
+        Immediate(2),
+        ZeroPage(3),
+        ZeroPageX(4),
+        ZeroPageY(5),
+        Relative(6),
+        Absolute(7),
+        AbsoluteX(8),
+        AbsoluteY(9),
+        Indirect(10),
+        IndexedIndirectX(11),
+        IndirectIndexedY(12);
+
+        private int key;
+
+        private AddressingMode(int k) {
+            key = k;
+        }
+    }
+
     // region 56种指令模拟
-    public void ADC() {}
-    public void AND() {}
-    public void ASL() {}
-    public void BCC() {}
-    public void BCS() {}
-    public void BEQ() {}
-    public void BIT() {}
-    public void BMI() {}
-    public void BNE() {}
-    public void BPL() {}
-    public void BRK() {}
-    public void BVC() {}
-    public void BVS() {}
-    public void CLC() {}
-    public void CLD() {}
-    public void CLI() {}
-    public void CLV() {}
-    public void CMP() {}
-    public void CPX() {}
-    public void CPY() {}
-    public void DEC() {}
-    public void DEX() {}
-    public void DEY() {}
-    public void EOR() {}
-    public void INC() {}
-    public void INX() {}
-    public void INY() {}
-    public void JMP() {}
-    public void JSR() {}
-    public void LDA() {}
-    public void LDX() {}
-    public void LDY() {}
-    public void LSR() {}
-    public void NOP() {}
-    public void ORA() {}
-    public void PHA() {}
-    public void PHP() {}
-    public void PLA() {}
-    public void PLP() {}
-    public void ROL() {}
-    public void ROR() {}
-    public void RTI() {}
-    public void RTS() {}
-    public void SBC() {}
-    public void SEC() {}
-    public void SED() {}
-    public void SEI() {}
-    public void STA() {}
-    public void STX() {}
-    public void STY() {}
-    public void TAX() {}
-    public void TAY() {}
-    public void TSX() {}
-    public void TXA() {}
-    public void TXS() {}
-    public void TYA() {}
+
+    /**
+     * Add with Carry
+     */
+    public void ADC() {
+    }
+
+    /**
+     * Logical AND
+     */
+    public void AND(int cycles, byte address) {
+
+        A = A & read(address);
+
+        FLAG_Z = (byte) (A == 0x00 ? 1 : 0);
+        FLAG_N = (byte) (A & 0x80);
+    }
+
+    public void ASL() {
+    }
+
+    public void BCC() {
+    }
+
+    public void BCS() {
+    }
+
+    public void BEQ() {
+    }
+
+    public void BIT() {
+    }
+
+    public void BMI() {
+    }
+
+    public void BNE() {
+    }
+
+    public void BPL() {
+    }
+
+    public void BRK() {
+    }
+
+    public void BVC() {
+    }
+
+    public void BVS() {
+    }
+
+    public void CLC() {
+    }
+
+    public void CLD() {
+    }
+
+    public void CLI() {
+    }
+
+    public void CLV() {
+    }
+
+    public void CMP() {
+    }
+
+    public void CPX() {
+    }
+
+    public void CPY() {
+    }
+
+    public void DEC() {
+    }
+
+    public void DEX() {
+    }
+
+    public void DEY() {
+    }
+
+    public void EOR() {
+    }
+
+    public void INC() {
+    }
+
+    public void INX() {
+    }
+
+    public void INY() {
+    }
+
+    public void JMP() {
+    }
+
+    public void JSR() {
+    }
+
+    public void LDA() {
+    }
+
+    public void LDX() {
+    }
+
+    public void LDY() {
+    }
+
+    public void LSR() {
+    }
+
+    public void NOP() {
+    }
+
+    public void ORA() {
+    }
+
+    public void PHA() {
+    }
+
+    public void PHP() {
+    }
+
+    public void PLA() {
+    }
+
+    public void PLP() {
+    }
+
+    public void ROL() {
+    }
+
+    public void ROR() {
+    }
+
+    public void RTI() {
+    }
+
+    public void RTS() {
+    }
+
+    public void SBC() {
+    }
+
+    public void SEC() {
+    }
+
+    public void SED() {
+    }
+
+    public void SEI() {
+    }
+
+    public void STA() {
+    }
+
+    public void STX() {
+    }
+
+    public void STY() {
+    }
+
+    public void TAX() {
+    }
+
+    public void TAY() {
+    }
+
+    public void TSX() {
+    }
+
+    public void TXA() {
+    }
+
+    public void TXS() {
+    }
+
+    public void TYA() {
+    }
     // endregion
 
-    void fetch() {}
+    void diasm(byte[] codes) {
+        int len = codes.length;
+
+        int start = 0;
+
+        while (start < len - 1) {
+            byte operationCode = codes[start++];
+
+
+            String operation = INSTRUCTION_SET[operationCode & 0xFF];
+            int operationLength = INSTRUCTION_LENGTH[operationCode & 0xFF];
+
+
+            String parameters = "";
+
+            for (int i = 0; i < operationLength - 1; i++) {
+                parameters = String.format("%02X", codes[start++]) + parameters;
+            }
+
+            if (!parameters.isEmpty()) {
+                parameters = "$" + parameters;
+            }
+
+            System.out.println(String.format("%s %s", operation, parameters));
+        }
+    }
+
+    void fetch() {
+    }
+
     int fetched = 0x00;
 
     int absoluteAddress = 0x0000;
