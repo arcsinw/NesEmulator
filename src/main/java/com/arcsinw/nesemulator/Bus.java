@@ -1,3 +1,5 @@
+package com.arcsinw.nesemulator;
+
 public class Bus {
 
     /**

@@ -1,3 +1,5 @@
+package com.arcsinw.nesemulator;
+
 /**
  * 2A03的CPU模拟
  */
