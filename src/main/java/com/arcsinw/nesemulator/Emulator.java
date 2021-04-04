@@ -1,6 +1,7 @@
 package com.arcsinw.nesemulator;
 
-import com.arcsinw.nesemulator.ui.*;
+import com.arcsinw.nesemulator.ui.AboutDialog;
+import com.arcsinw.nesemulator.ui.PatternTableFrame;
 
 import java.awt.*;
 import java.awt.event.WindowAdapter;
@@ -8,11 +9,13 @@ import java.awt.event.WindowEvent;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.URL;
 
 public class Emulator extends Frame {
     private static CPU cpu = new CPU();
     private static PPU ppu = new PPU();
+    private static CPUBus cpuBus = new CPUBus();
+    private static PPUBus ppuBus = new PPUBus();
+
     private static NesRom nesRom;
 
     private static final int SCREEN_WIDTH = 256;
@@ -80,15 +83,42 @@ public class Emulator extends Frame {
         Emulator emulator = new Emulator();
         emulator.setVisible(true);
 
-        InputStream inputStream = Emulator.class.getResourceAsStream("/896.nes");
-        URL url = Emulator.class.getResource("/");
-        System.out.println(url.getPath());
+        // 1. 加载卡带数据到内存中
+        InputStream inputStream = Emulator.class.getResourceAsStream("/nestest.nes");
+//        URL url = Emulator.class.getResource("/");
+//        System.out.println(url.getPath());
         nesRom = new NesRom(inputStream);
         System.out.println(nesRom.header.toString());
 
-        cpu.diasm(nesRom.prg);
+        cpu.setBus(cpuBus);
+//        cpu.diasm(nesRom.prg);
+
+        System.arraycopy(nesRom.prg, 0, cpuBus.ram, 0x8000, nesRom.prg.length);
+
+        // PRG Mirror
+        if (nesRom.prg.length == 0x4000) {
+            System.arraycopy(nesRom.prg, 0, cpuBus.ram, 0xC000, nesRom.prg.length);
+        }
 
         emulator.displayPatternTable(ppu.getPatternTable(nesRom.chr));
+
+        int line = 0;
+        cpu.reset();
+
+        while (line++ < 1000) {
+            cpu.clock();
+        }
+    }
+
+    public static String get2DArrayPrint(byte[] matrix) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < (matrix.length / 16); i++) {
+            for (int j = 0; j < 16; j++) {
+                sb.append(matrix[i* 16 + j] + "\t");
+            }
+            sb.append("\n");
+        }
+        return sb.toString();
     }
 
     public void showPatternTableFrame() {

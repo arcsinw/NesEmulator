@@ -1,10 +1,12 @@
 package com.arcsinw.nesemulator;
 
+import java.util.Arrays;
+import java.util.Optional;
+
 /**
  * 2A03的CPU模拟
  */
 public class CPU {
-
     Bus bus;
 
     int fetched = 0x00;
@@ -17,6 +19,7 @@ public class CPU {
     // region debug only
 
     int clockCount = 0;
+    boolean logging = true;
 
     // endregion
 
@@ -31,7 +34,7 @@ public class CPU {
     int read16(int address) {
         byte lo = read(address);
         byte hi = read(address + 1);
-        return (hi << 8) | lo;
+        return ((hi & 0x00FF) << 8) | (lo & 0x00FF);
     }
 
     void write(int address, byte data) {
@@ -47,7 +50,7 @@ public class CPU {
      * 指令表，为16x16的矩阵，横坐标和纵坐标为0-F，这里使用一维数组表示
      * 例如， 0x24是BIT，0x24的十进制为36，在数组中的下标也是36
      */
-    private final String[] INSTRUCTION_SET = {
+    public static final String[] INSTRUCTION_SET = {
             "BRK", "ORA", "UNK", "UNK", "UNK", "ORA", "ASL", "UNK", "PHP", "ORA", "ASL", "UNK", "UNK", "ORA", "ASL", "UNK",
             "BPL", "ORA", "UNK", "UNK", "UNK", "ORA", "ASL", "UNK", "CLC", "ORA", "UNK", "UNK", "UNK", "ORA", "ASL", "UNK",
             "JSR", "AND", "UNK", "UNK", "BIT", "AND", "ROL", "UNK", "PLP", "AND", "ROL", "UNK", "BIT", "AND", "ROL", "UNK",
@@ -69,7 +72,7 @@ public class CPU {
     /**
      * 指令的长度，与上面的指令表一一对应
      */
-    private final int[] INSTRUCTION_LENGTH = {
+    public static final int[] INSTRUCTION_LENGTH = {
             1, 2, 1, 1, 1, 2, 2, 1, 1, 2, 1, 1, 1, 3, 3, 1,
             2, 2, 1, 1, 1, 2, 2, 1, 1, 3, 1, 1, 1, 3, 3, 1,
             3, 2, 1, 1, 2, 2, 2, 1, 1, 2, 1, 1, 3, 3, 3, 1,
@@ -91,7 +94,7 @@ public class CPU {
     /**
      * 指令的周期
      */
-    private final int[] INSTRUCTION_CYCLE = {
+    public static final int[] INSTRUCTION_CYCLE = {
             7, 6, 2, 8, 3, 3, 5, 5, 3, 2, 2, 2, 4, 4, 6, 6,
             2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
             6, 6, 2, 8, 3, 3, 5, 5, 4, 2, 2, 2, 4, 4, 6, 6,
@@ -113,7 +116,7 @@ public class CPU {
     /**
      * 指令的寻址模式
      */
-    private final int[] INSTRUCTION_ADDRESSING_MODE = {
+    public static final int[] INSTRUCTION_ADDRESSING_MODE = {
          // 0  1   2  3  4  5  6  7  8  9  A  B  C  D  E  F
             0, 11, 0, 0, 0, 3, 3, 0, 0, 2, 1, 0, 0, 7, 7, 0,
             6, 12, 0, 0, 0, 4, 4, 0, 0, 9, 0, 0, 0, 8, 8, 0,
@@ -136,7 +139,7 @@ public class CPU {
     /**
      * 寻址模式索引表
      */
-    private final AddressingMode[] ADDRESSING_MODE_TABLE = new AddressingMode[] {
+    public static final AddressingMode[] ADDRESSING_MODE_TABLE = new AddressingMode[] {
             AddressingMode.Implied,             // 0
             AddressingMode.Accumulator,         // 1
             AddressingMode.Immediate,           // 2
@@ -152,7 +155,7 @@ public class CPU {
             AddressingMode.IndirectIndexedY     // 12
     };
 
-    enum AddressingMode {
+    public enum AddressingMode {
         Implied(0),
         Accumulator(1),
         Immediate(2),
@@ -173,10 +176,12 @@ public class CPU {
             key = k;
         }
 
-        private final static AddressingMode[] values = AddressingMode.values();
-
         public static AddressingMode fromIndex(int k) {
-            return AddressingMode.values()[k];
+            return ADDRESSING_MODE_TABLE[k];
+        }
+
+        public String getFullName() {
+            return "AddressingMode." + this.name();
         }
     }
     // endregion
@@ -227,7 +232,8 @@ public class CPU {
         flagB = flagI = 1;
 
         absoluteAddress = 0xFFFC;
-        PC = read16(absoluteAddress);
+//        PC = read16(absoluteAddress); // 实际上是0x8000
+        PC = 0xC000; // 调试nestest.nes
 
         absoluteAddress = 0x0000;
         relativeAddress = 0x0000;
@@ -411,9 +417,8 @@ public class CPU {
      * 地址是小端序 高位在右
      */
     public byte ABS() {
-        int lowAddress = read(PC++);
-        int highAddress = read(PC++);
-        absoluteAddress = (highAddress << 8) | lowAddress;
+        absoluteAddress = read16(PC);
+        PC += 2;
         return 0;
     }
 
@@ -527,12 +532,14 @@ public class CPU {
     /**
      * Logical AND
      */
-    public void AND(int cycles, byte address) {
+    public void AND() {
         fetch();
-        A = (byte)(A & read(address));
+        A &= fetched;
 
         flagZ = (byte) ((A & 0x00FF) == 0 ? 1 : 0);
         flagN = (byte) ((A & 0x80) == 0 ? 0 : 1);
+
+        cycles++;
     }
 
     /**
@@ -1276,6 +1283,1091 @@ public class CPU {
 
     // endregion
 
+    enum Instruction {
+        BRK_Implied("BRK", 1, 7, 0x00, AddressingMode.Implied) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.IMP();
+                cpu.BRK();
+            }
+        },
+        ORA_IndexedIndirectX("ORA", 2, 6, 0x01, AddressingMode.IndexedIndirectX) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.IZX();
+                cpu.ORA();
+            }
+        },
+        ORA_ZeroPage("ORA", 2, 3, 0x05, AddressingMode.ZeroPage) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.ZP0();
+                cpu.ORA();
+            }
+        },
+        ASL_ZeroPage("ASL", 2, 5, 0x06, AddressingMode.ZeroPage) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.ZP0();
+                cpu.ASL();
+            }
+        },
+        PHP_Implied("PHP", 1, 3, 0x08, AddressingMode.Implied) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.IMP();
+                cpu.PHP();
+            }
+        },
+        ORA_Immediate("ORA", 2, 2, 0x09, AddressingMode.Immediate) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.IMM();
+                cpu.ORA();
+            }
+        },
+        ASL_Accumulator("ASL", 1, 2, 0x0A, AddressingMode.Accumulator) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.IMP();
+                cpu.ASL();
+            }
+        },
+        ORA_Absolute("ORA", 3, 4, 0x0D, AddressingMode.Absolute) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.ABS();
+                cpu.ORA();
+            }
+        },
+        ASL_Absolute("ASL", 3, 6, 0x0E, AddressingMode.Absolute) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.ABS();
+                cpu.ASL();
+            }
+        },
+        BPL_Relative("BPL", 2, 2, 0x10, AddressingMode.Relative) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.REL();
+                cpu.BPL();
+            }
+        },
+        ORA_IndirectIndexedY("ORA", 2, 5, 0x11, AddressingMode.IndirectIndexedY) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.IZY();
+                cpu.ORA();
+            }
+        },
+        ORA_ZeroPageX("ORA", 2, 4, 0x15, AddressingMode.ZeroPageX) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.ZPX();
+                cpu.ORA();
+            }
+        },
+        ASL_ZeroPageX("ASL", 2, 6, 0x16, AddressingMode.ZeroPageX) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.ZPX();
+                cpu.ASL();
+            }
+        },
+        CLC_Implied("CLC", 1, 2, 0x18, AddressingMode.Implied) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.IMP();
+                cpu.CLC();
+            }
+        },
+        ORA_AbsoluteY("ORA", 3, 4, 0x19, AddressingMode.AbsoluteY) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.ABY();
+                cpu.ORA();
+            }
+        },
+        ORA_AbsoluteX("ORA", 3, 4, 0x1D, AddressingMode.AbsoluteX) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.ABX();
+                cpu.ORA();
+            }
+        },
+        ASL_AbsoluteX("ASL", 3, 7, 0x1E, AddressingMode.AbsoluteX) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.ABX();
+                cpu.ASL();
+            }
+        },
+        JSR_Absolute("JSR", 3, 6, 0x20, AddressingMode.Absolute) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.ABS();
+                cpu.JSR();
+            }
+        },
+        AND_IndexedIndirectX("AND", 2, 6, 0x21, AddressingMode.IndexedIndirectX) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.IZX();
+                cpu.AND();
+            }
+        },
+        BIT_ZeroPage("BIT", 2, 3, 0x24, AddressingMode.ZeroPage) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.ZP0();
+                cpu.BIT();
+            }
+        },
+        AND_ZeroPage("AND", 2, 3, 0x25, AddressingMode.ZeroPage) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.ZP0();
+                cpu.AND();
+            }
+        },
+        ROL_ZeroPage("ROL", 2, 5, 0x26, AddressingMode.ZeroPage) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.ZP0();
+                cpu.ROL();
+            }
+        },
+        PLP_Implied("PLP", 1, 4, 0x28, AddressingMode.Implied) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.IMP();
+                cpu.PLP();
+            }
+        },
+        AND_Immediate("AND", 2, 2, 0x29, AddressingMode.Immediate) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.IMM();
+                cpu.AND();
+            }
+        },
+        ROL_Accumulator("ROL", 1, 2, 0x2A, AddressingMode.Accumulator) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.IMP();
+                cpu.ROL();
+            }
+        },
+        BIT_Absolute("BIT", 3, 4, 0x2C, AddressingMode.Absolute) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.ABS();
+                cpu.BIT();
+            }
+        },
+        AND_Absolute("AND", 3, 4, 0x2D, AddressingMode.Absolute) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.ABS();
+                cpu.AND();
+            }
+        },
+        ROL_Absolute("ROL", 3, 6, 0x2E, AddressingMode.Absolute) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.ABS();
+                cpu.ROL();
+            }
+        },
+        BMI_Relative("BMI", 2, 2, 0x30, AddressingMode.Relative) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.REL();
+                cpu.BMI();
+            }
+        },
+        AND_IndirectIndexedY("AND", 2, 5, 0x31, AddressingMode.IndirectIndexedY) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.IZY();
+                cpu.AND();
+            }
+        },
+        AND_ZeroPageX("AND", 2, 4, 0x35, AddressingMode.ZeroPageX) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.ZPX();
+                cpu.AND();
+            }
+        },
+        ROL_ZeroPageX("ROL", 2, 6, 0x36, AddressingMode.ZeroPageX) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.ZPX();
+                cpu.ROL();
+            }
+        },
+        SEC_Implied("SEC", 1, 2, 0x38, AddressingMode.Implied) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.IMP();
+                cpu.SEC();
+            }
+        },
+        AND_AbsoluteY("AND", 3, 4, 0x39, AddressingMode.AbsoluteY) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.ABY();
+                cpu.AND();
+            }
+        },
+        AND_AbsoluteX("AND", 3, 4, 0x3D, AddressingMode.AbsoluteX) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.ABX();
+                cpu.AND();
+            }
+        },
+        ROL_AbsoluteX("ROL", 3, 7, 0x3E, AddressingMode.AbsoluteX) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.ABX();
+                cpu.ROL();
+            }
+        },
+        RTI_Implied("RTI", 1, 6, 0x40, AddressingMode.Implied) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.IMP();
+                cpu.RTI();
+            }
+        },
+        EOR_IndexedIndirectX("EOR", 2, 6, 0x41, AddressingMode.IndexedIndirectX) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.IZX();
+                cpu.EOR();
+            }
+        },
+        EOR_ZeroPage("EOR", 2, 3, 0x45, AddressingMode.ZeroPage) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.ZP0();
+                cpu.EOR();
+            }
+        },
+        LSR_ZeroPage("LSR", 2, 5, 0x46, AddressingMode.ZeroPage) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.ZP0();
+                cpu.LSR();
+            }
+        },
+        PHA_Implied("PHA", 1, 3, 0x48, AddressingMode.Implied) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.IMP();
+                cpu.PHA();
+            }
+        },
+        EOR_Immediate("EOR", 2, 2, 0x49, AddressingMode.Immediate) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.IMM();
+                cpu.EOR();
+            }
+        },
+        LSR_Accumulator("LSR", 1, 2, 0x4A, AddressingMode.Accumulator) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.IMP();
+                cpu.LSR();
+            }
+        },
+        JMP_Absolute("JMP", 3, 3, 0x4C, AddressingMode.Absolute) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.ABS();
+                cpu.JMP();
+            }
+        },
+        EOR_Absolute("EOR", 3, 4, 0x4D, AddressingMode.Absolute) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.ABS();
+                cpu.EOR();
+            }
+        },
+        LSR_Absolute("LSR", 3, 6, 0x4E, AddressingMode.Absolute) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.ABS();
+                cpu.LSR();
+            }
+        },
+        BVC_Relative("BVC", 2, 2, 0x50, AddressingMode.Relative) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.REL();
+                cpu.BVC();
+            }
+        },
+        EOR_IndirectIndexedY("EOR", 2, 5, 0x51, AddressingMode.IndirectIndexedY) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.IZY();
+                cpu.EOR();
+            }
+        },
+        EOR_ZeroPageX("EOR", 2, 4, 0x55, AddressingMode.ZeroPageX) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.ZPX();
+                cpu.EOR();
+            }
+        },
+        LSR_ZeroPageX("LSR", 2, 6, 0x56, AddressingMode.ZeroPageX) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.ZPX();
+                cpu.LSR();
+            }
+        },
+        CLI_Implied("CLI", 1, 2, 0x58, AddressingMode.Implied) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.IMP();
+                cpu.CLI();
+            }
+        },
+        EOR_AbsoluteY("EOR", 3, 4, 0x59, AddressingMode.AbsoluteY) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.ABY();
+                cpu.EOR();
+            }
+        },
+        EOR_AbsoluteX("EOR", 3, 4, 0x5D, AddressingMode.AbsoluteX) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.ABX();
+                cpu.EOR();
+            }
+        },
+        LSR_AbsoluteX("LSR", 3, 7, 0x5E, AddressingMode.AbsoluteX) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.ABX();
+                cpu.LSR();
+            }
+        },
+        RTS_Implied("RTS", 1, 6, 0x60, AddressingMode.Implied) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.IMP();
+                cpu.RTS();
+            }
+        },
+        ADC_IndexedIndirectX("ADC", 2, 6, 0x61, AddressingMode.IndexedIndirectX) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.IZX();
+                cpu.ADC();
+            }
+        },
+        ADC_ZeroPage("ADC", 2, 3, 0x65, AddressingMode.ZeroPage) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.ZP0();
+                cpu.ADC();
+            }
+        },
+        ROR_ZeroPage("ROR", 2, 5, 0x66, AddressingMode.ZeroPage) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.ZP0();
+                cpu.ROR();
+            }
+        },
+        PLA_Implied("PLA", 1, 4, 0x68, AddressingMode.Implied) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.IMP();
+                cpu.PLA();
+            }
+        },
+        ADC_Immediate("ADC", 2, 2, 0x69, AddressingMode.Immediate) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.IMM();
+                cpu.ADC();
+            }
+        },
+        ROR_Accumulator("ROR", 1, 2, 0x6A, AddressingMode.Accumulator) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.IMP();
+                cpu.ROR();
+            }
+        },
+        JMP_Indirect("JMP", 3, 5, 0x6C, AddressingMode.Indirect) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.IND();
+                cpu.JMP();
+            }
+        },
+        ADC_Absolute("ADC", 3, 4, 0x6D, AddressingMode.Absolute) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.ABS();
+                cpu.ADC();
+            }
+        },
+        ROR_Absolute("ROR", 3, 6, 0x6E, AddressingMode.Absolute) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.ABS();
+                cpu.ROR();
+            }
+        },
+        BVS_Relative("BVS", 2, 2, 0x70, AddressingMode.Relative) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.REL();
+                cpu.BVS();
+            }
+        },
+        ADC_IndirectIndexedY("ADC", 2, 5, 0x71, AddressingMode.IndirectIndexedY) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.IZY();
+                cpu.ADC();
+            }
+        },
+        ADC_ZeroPageX("ADC", 2, 4, 0x75, AddressingMode.ZeroPageX) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.ZPX();
+                cpu.ADC();
+            }
+        },
+        ROR_ZeroPageX("ROR", 2, 6, 0x76, AddressingMode.ZeroPageX) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.ZPX();
+                cpu.ROR();
+            }
+        },
+        SEI_Implied("SEI", 1, 2, 0x78, AddressingMode.Implied) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.IMP();
+                cpu.SEI();
+            }
+        },
+        ADC_AbsoluteY("ADC", 3, 4, 0x79, AddressingMode.AbsoluteY) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.ABY();
+                cpu.ADC();
+            }
+        },
+        ADC_AbsoluteX("ADC", 3, 4, 0x7D, AddressingMode.AbsoluteX) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.ABX();
+                cpu.ADC();
+            }
+        },
+        ROR_AbsoluteX("ROR", 3, 7, 0x7E, AddressingMode.AbsoluteX) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.ABX();
+                cpu.ROR();
+            }
+        },
+        STA_IndexedIndirectX("STA", 2, 6, 0x81, AddressingMode.IndexedIndirectX) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.IZX();
+                cpu.STA();
+            }
+        },
+        STY_ZeroPage("STY", 2, 3, 0x84, AddressingMode.ZeroPage) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.ZP0();
+                cpu.STY();
+            }
+        },
+        STA_ZeroPage("STA", 2, 3, 0x85, AddressingMode.ZeroPage) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.ZP0();
+                cpu.STA();
+            }
+        },
+        STX_ZeroPage("STX", 2, 3, 0x86, AddressingMode.ZeroPage) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.ZP0();
+                cpu.STX();
+            }
+        },
+        DEY_Implied("DEY", 1, 2, 0x88, AddressingMode.Implied) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.IMP();
+                cpu.DEY();
+            }
+        },
+        TXA_Implied("TXA", 1, 2, 0x8A, AddressingMode.Implied) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.IMP();
+                cpu.TXA();
+            }
+        },
+        STY_Absolute("STY", 3, 4, 0x8C, AddressingMode.Absolute) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.ABS();
+                cpu.STY();
+            }
+        },
+        STA_Absolute("STA", 3, 4, 0x8D, AddressingMode.Absolute) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.ABS();
+                cpu.STA();
+            }
+        },
+        STX_Absolute("STX", 3, 4, 0x8E, AddressingMode.Absolute) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.ABS();
+                cpu.STX();
+            }
+        },
+        BCC_Relative("BCC", 2, 2, 0x90, AddressingMode.Relative) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.REL();
+                cpu.BCC();
+            }
+        },
+        STA_IndirectIndexedY("STA", 2, 6, 0x91, AddressingMode.IndirectIndexedY) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.IZY();
+                cpu.STA();
+            }
+        },
+        STY_ZeroPageX("STY", 2, 4, 0x94, AddressingMode.ZeroPageX) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.ZPX();
+                cpu.STY();
+            }
+        },
+        STA_ZeroPageX("STA", 2, 4, 0x95, AddressingMode.ZeroPageX) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.ZPX();
+                cpu.STA();
+            }
+        },
+        STX_ZeroPageY("STX", 2, 4, 0x96, AddressingMode.ZeroPageY) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.ZPY();
+                cpu.STX();
+            }
+        },
+        TYA_Implied("TYA", 1, 2, 0x98, AddressingMode.Implied) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.IMP();
+                cpu.TYA();
+            }
+        },
+        STA_AbsoluteY("STA", 3, 5, 0x99, AddressingMode.AbsoluteY) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.ABY();
+                cpu.STA();
+            }
+        },
+        TXS_Implied("TXS", 1, 2, 0x9A, AddressingMode.Implied) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.IMP();
+                cpu.TXS();
+            }
+        },
+        STA_AbsoluteX("STA", 3, 5, 0x9D, AddressingMode.AbsoluteX) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.ABX();
+                cpu.STA();
+            }
+        },
+        LDY_Immediate("LDY", 2, 2, 0xA0, AddressingMode.Immediate) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.IMM();
+                cpu.LDY();
+            }
+        },
+        LDA_IndexedIndirectX("LDA", 2, 6, 0xA1, AddressingMode.IndexedIndirectX) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.IZX();
+                cpu.LDA();
+            }
+        },
+        LDX_Immediate("LDX", 2, 2, 0xA2, AddressingMode.Immediate) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.IMM();
+                cpu.LDX();
+            }
+        },
+        LDY_ZeroPage("LDY", 2, 3, 0xA4, AddressingMode.ZeroPage) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.ZP0();
+                cpu.LDY();
+            }
+        },
+        LDA_ZeroPage("LDA", 2, 3, 0xA5, AddressingMode.ZeroPage) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.ZP0();
+                cpu.LDA();
+            }
+        },
+        LDX_ZeroPage("LDX", 2, 3, 0xA6, AddressingMode.ZeroPage) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.ZP0();
+                cpu.LDX();
+            }
+        },
+        TAY_Implied("TAY", 1, 2, 0xA8, AddressingMode.Implied) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.IMP();
+                cpu.TAY();
+            }
+        },
+        LDA_Immediate("LDA", 2, 2, 0xA9, AddressingMode.Immediate) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.IMM();
+                cpu.LDA();
+            }
+        },
+        TAX_Implied("TAX", 1, 2, 0xAA, AddressingMode.Implied) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.IMP();
+                cpu.TAX();
+            }
+        },
+        LDY_Absolute("LDY", 3, 4, 0xAC, AddressingMode.Absolute) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.ABS();
+                cpu.LDY();
+            }
+        },
+        LDA_Absolute("LDA", 3, 4, 0xAD, AddressingMode.Absolute) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.ABS();
+                cpu.LDA();
+            }
+        },
+        LDX_Absolute("LDX", 3, 4, 0xAE, AddressingMode.Absolute) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.ABS();
+                cpu.LDX();
+            }
+        },
+        BCS_Relative("BCS", 2, 2, 0xB0, AddressingMode.Relative) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.REL();
+                cpu.BCS();
+            }
+        },
+        LDA_IndirectIndexedY("LDA", 2, 5, 0xB1, AddressingMode.IndirectIndexedY) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.IZY();
+                cpu.LDA();
+            }
+        },
+        LDY_ZeroPageX("LDY", 2, 4, 0xB4, AddressingMode.ZeroPageX) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.ZPX();
+                cpu.LDY();
+            }
+        },
+        LDA_ZeroPageX("LDA", 2, 4, 0xB5, AddressingMode.ZeroPageX) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.ZPX();
+                cpu.LDA();
+            }
+        },
+        LDX_ZeroPageY("LDX", 2, 4, 0xB6, AddressingMode.ZeroPageY) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.ZPY();
+                cpu.LDX();
+            }
+        },
+        CLV_Implied("CLV", 1, 2, 0xB8, AddressingMode.Implied) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.IMP();
+                cpu.CLV();
+            }
+        },
+        LDA_AbsoluteY("LDA", 3, 4, 0xB9, AddressingMode.AbsoluteY) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.ABY();
+                cpu.LDA();
+            }
+        },
+        TSX_Implied("TSX", 1, 2, 0xBA, AddressingMode.Implied) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.IMP();
+                cpu.TSX();
+            }
+        },
+        LDY_AbsoluteX("LDY", 3, 4, 0xBC, AddressingMode.AbsoluteX) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.ABX();
+                cpu.LDY();
+            }
+        },
+        LDA_AbsoluteX("LDA", 3, 4, 0xBD, AddressingMode.AbsoluteX) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.ABX();
+                cpu.LDA();
+            }
+        },
+        LDX_AbsoluteY("LDX", 3, 4, 0xBE, AddressingMode.AbsoluteY) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.ABY();
+                cpu.LDX();
+            }
+        },
+        CPY_Immediate("CPY", 2, 2, 0xC0, AddressingMode.Immediate) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.IMM();
+                cpu.CPY();
+            }
+        },
+        CMP_IndexedIndirectX("CMP", 2, 6, 0xC1, AddressingMode.IndexedIndirectX) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.IZX();
+                cpu.CMP();
+            }
+        },
+        CPY_ZeroPage("CPY", 2, 3, 0xC4, AddressingMode.ZeroPage) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.ZP0();
+                cpu.CPY();
+            }
+        },
+        CMP_ZeroPage("CMP", 2, 3, 0xC5, AddressingMode.ZeroPage) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.ZP0();
+                cpu.CMP();
+            }
+        },
+        DEC_ZeroPage("DEC", 2, 5, 0xC6, AddressingMode.ZeroPage) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.ZP0();
+                cpu.DEC();
+            }
+        },
+        INY_Implied("INY", 1, 2, 0xC8, AddressingMode.Implied) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.IMP();
+                cpu.INY();
+            }
+        },
+        CMP_Immediate("CMP", 2, 2, 0xC9, AddressingMode.Immediate) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.IMM();
+                cpu.CMP();
+            }
+        },
+        DEX_Implied("DEX", 1, 2, 0xCA, AddressingMode.Implied) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.IMP();
+                cpu.DEX();
+            }
+        },
+        CPY_Absolute("CPY", 3, 4, 0xCC, AddressingMode.Absolute) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.ABS();
+                cpu.CPY();
+            }
+        },
+        CMP_Absolute("CMP", 3, 4, 0xCD, AddressingMode.Absolute) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.ABS();
+                cpu.CMP();
+            }
+        },
+        DEC_Absolute("DEC", 3, 6, 0xCE, AddressingMode.Absolute) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.ABS();
+                cpu.DEC();
+            }
+        },
+        BNE_Relative("BNE", 2, 2, 0xD0, AddressingMode.Relative) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.REL();
+                cpu.BNE();
+            }
+        },
+        CMP_IndirectIndexedY("CMP", 2, 5, 0xD1, AddressingMode.IndirectIndexedY) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.IZY();
+                cpu.CMP();
+            }
+        },
+        CMP_ZeroPageX("CMP", 2, 4, 0xD5, AddressingMode.ZeroPageX) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.ZPX();
+                cpu.CMP();
+            }
+        },
+        DEC_ZeroPageX("DEC", 2, 6, 0xD6, AddressingMode.ZeroPageX) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.ZPX();
+                cpu.DEC();
+            }
+        },
+        CLD_Implied("CLD", 1, 2, 0xD8, AddressingMode.Implied) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.IMP();
+                cpu.CLD();
+            }
+        },
+        CMP_AbsoluteY("CMP", 3, 4, 0xD9, AddressingMode.AbsoluteY) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.ABY();
+                cpu.CMP();
+            }
+        },
+        CMP_AbsoluteX("CMP", 3, 4, 0xDD, AddressingMode.AbsoluteX) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.ABX();
+                cpu.CMP();
+            }
+        },
+        DEC_AbsoluteX("DEC", 3, 7, 0xDE, AddressingMode.AbsoluteX) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.ABX();
+                cpu.DEC();
+            }
+        },
+        CPX_Immediate("CPX", 2, 2, 0xE0, AddressingMode.Immediate) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.IMM();
+                cpu.CPX();
+            }
+        },
+        SBC_IndexedIndirectX("SBC", 2, 6, 0xE1, AddressingMode.IndexedIndirectX) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.IZX();
+                cpu.SBC();
+            }
+        },
+        CPX_ZeroPage("CPX", 2, 3, 0xE4, AddressingMode.ZeroPage) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.ZP0();
+                cpu.CPX();
+            }
+        },
+        SBC_ZeroPage("SBC", 2, 3, 0xE5, AddressingMode.ZeroPage) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.ZP0();
+                cpu.SBC();
+            }
+        },
+        INC_ZeroPage("INC", 2, 5, 0xE6, AddressingMode.ZeroPage) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.ZP0();
+                cpu.INC();
+            }
+        },
+        INX_Implied("INX", 1, 2, 0xE8, AddressingMode.Implied) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.IMP();
+                cpu.INX();
+            }
+        },
+        SBC_Immediate("SBC", 2, 2, 0xE9, AddressingMode.Immediate) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.IMM();
+                cpu.SBC();
+            }
+        },
+        NOP_Implied("NOP", 1, 2, 0xEA, AddressingMode.Implied) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.IMP();
+                cpu.NOP();
+            }
+        },
+        CPX_Absolute("CPX", 3, 4, 0xEC, AddressingMode.Absolute) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.ABS();
+                cpu.CPX();
+            }
+        },
+        SBC_Absolute("SBC", 3, 4, 0xED, AddressingMode.Absolute) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.ABS();
+                cpu.SBC();
+            }
+        },
+        INC_Absolute("INC", 3, 6, 0xEE, AddressingMode.Absolute) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.ABS();
+                cpu.INC();
+            }
+        },
+        BEQ_Relative("BEQ", 2, 2, 0xF0, AddressingMode.Relative) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.REL();
+                cpu.BEQ();
+            }
+        },
+        SBC_IndirectIndexedY("SBC", 2, 5, 0xF1, AddressingMode.IndirectIndexedY) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.IZY();
+                cpu.SBC();
+            }
+        },
+        SBC_ZeroPageX("SBC", 2, 4, 0xF5, AddressingMode.ZeroPageX) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.ZPX();
+                cpu.SBC();
+            }
+        },
+        INC_ZeroPageX("INC", 2, 6, 0xF6, AddressingMode.ZeroPageX) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.ZPX();
+                cpu.INC();
+            }
+        },
+        SED_Implied("SED", 1, 2, 0xF8, AddressingMode.Implied) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.IMP();
+                cpu.SED();
+            }
+        },
+        SBC_AbsoluteY("SBC", 3, 4, 0xF9, AddressingMode.AbsoluteY) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.ABY();
+                cpu.SBC();
+            }
+        },
+        SBC_AbsoluteX("SBC", 3, 4, 0xFD, AddressingMode.AbsoluteX) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.ABX();
+                cpu.SBC();
+            }
+        },
+        INC_AbsoluteX("INC", 3, 7, 0xFE, AddressingMode.AbsoluteX) {
+            @Override
+            public void operation(CPU cpu) {
+                cpu.ABX();
+                cpu.INC();
+            }
+        };
+
+        private String name;
+        private int length;
+        private int cycles;
+        private int operationCode;
+        private AddressingMode addressingMode;
+        public void operation(CPU cpu) {
+
+        }
+
+        private Instruction(String name, int len, int cycles, int code, AddressingMode addressingMode) {
+            this.name = name;
+            this.length = len;
+            this.cycles = cycles;
+            this.operationCode = code;
+            this.addressingMode = addressingMode;
+        }
+
+
+        private final static Instruction[] values = Instruction.values();
+
+        public static Instruction fromCode(int code) {
+            Optional<Instruction> instruction = Arrays.stream(values).filter(x -> x.operationCode == code).findFirst();
+            return instruction.isPresent() ? instruction.get() : NOP_Implied;
+        }
+    }
+
     void diasm(byte[] codes) {
         int len = codes.length;
 
@@ -1304,27 +2396,49 @@ public class CPU {
         }
     }
 
-    void fetch() {
+    int fetch() {
+        if (INSTRUCTION_ADDRESSING_MODE[operationCode] != AddressingMode.Implied.key) {
+            fetched = read(absoluteAddress);
+        }
+
+        return fetched;
     }
 
     void clock() {
-        if (cycles == 0) {
-            operationCode = read(PC++);
+//        if (cycles == 0) {
+            int tmpPC = PC;
+            operationCode = read(PC++) & 0xFF;
             flagU = 1;
 
-            // 获取指令的周期数
-            cycles = INSTRUCTION_CYCLE[operationCode];
+            // 获取指令
+            Instruction instruction = Instruction.fromCode(operationCode);
 
-            // 获取指令的寻址模式
-            int addressingModeCode = INSTRUCTION_ADDRESSING_MODE[operationCode];
-            AddressingMode addressingMode = AddressingMode.fromIndex(addressingModeCode);
+            // 执行指令（包含了寻址过程）
+            instruction.operation(CPU.this);
 
 
-            // 执行指令
+            if (logging) {
+                String operation = INSTRUCTION_SET[operationCode & 0xFF];
+                int operationLength = INSTRUCTION_LENGTH[operationCode & 0xFF];
 
+                String operationString = String.format("%02X", operationCode);
+                String parameters = "";
+
+                for (int i = 1; i < operationLength; i++) {
+                    parameters = String.format("%02X", read(tmpPC+i)) + parameters;
+                    operationString += " " + String.format("%02X", read(tmpPC+i));
+                }
+
+                if (!parameters.isEmpty()) {
+                    parameters = "$" + parameters;
+                }
+
+                System.out.println(String.format("%04X: %-8s \t%s %-26s  A:%02X X:%02X Y:%02X P:%02X SP:%02X PPU: CYC: %d",
+                        tmpPC, operationString, operation, parameters, A, X, Y, P, S, cycles));
+            }
 
             flagU = 1;
-        }
+//        }
 
         clockCount++;
         cycles--;
