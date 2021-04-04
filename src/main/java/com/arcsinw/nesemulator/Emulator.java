@@ -83,8 +83,11 @@ public class Emulator extends Frame {
         Emulator emulator = new Emulator();
         emulator.setVisible(true);
 
+        String romPath = "/nestest.nes";
+//        String romPath = "/896.nes";
+
         // 1. 加载卡带数据到内存中
-        InputStream inputStream = Emulator.class.getResourceAsStream("/nestest.nes");
+        InputStream inputStream = Emulator.class.getResourceAsStream(romPath);
 //        URL url = Emulator.class.getResource("/");
 //        System.out.println(url.getPath());
         nesRom = new NesRom(inputStream);
@@ -105,7 +108,7 @@ public class Emulator extends Frame {
         int line = 0;
         cpu.reset();
 
-        while (line++ < 1000) {
+        while (line++ < 9000) {
             cpu.clock();
         }
     }
