@@ -1,7 +1,7 @@
 package com.arcsinw.nesemulator;
 
 /**
- * NES所有的着色表
+ * NES所有的着色表，共64种
  */
 public class ColorPalette {
     public static final int[][] COLOR_PALETTE = new int[][] {

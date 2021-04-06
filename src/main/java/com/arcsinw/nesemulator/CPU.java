@@ -7,14 +7,23 @@ import java.util.Optional;
  * 2A03的CPU模拟
  */
 public class CPU {
-    Bus bus;
 
-    int fetched = 0x00;
+    // region 字段
+    private int fetched = 0x00;
 
-    int absoluteAddress = 0x0000;
-    int relativeAddress = 0x00;
-    int cycles = 0;
-    int operationCode = 0x00;
+    private int absoluteAddress = 0x0000;
+    private int relativeAddress = 0x00;
+    private int cycles = 0;
+    private int operationCode = 0x00;
+
+    private CPUBus bus;
+
+    /**
+     * 卡带
+     */
+    private Cartridge cartridge;
+
+    // endregion
 
     // region debug only
 
@@ -23,7 +32,7 @@ public class CPU {
 
     // endregion
 
-    void setBus(Bus b) {
+    void setBus(CPUBus b) {
         this.bus = b;
     }
 
@@ -1368,8 +1377,8 @@ public class CPU {
         S = 0x00FD;
 
         P = 0x00;
-        setFlag(StatusFlag.I, 1);
-//        setFlag(StatusFlag.B, 1);
+
+        setFlag(StatusFlag.U, 1);
 
         absoluteAddress = 0xFFFC;
 //        PC = read16(absoluteAddress); // 实际上是0x8000
@@ -1379,7 +1388,7 @@ public class CPU {
         relativeAddress = 0x0000;
         fetched = 0x00;
 
-        cycles = 8;
+        cycles += 8;
     }
 
     /**
@@ -1388,7 +1397,7 @@ public class CPU {
      */
     void nmi() {
         // 将PC（2字节）写入栈（先写入高8位）
-        write(STACK_BASE_ADDRESS + S--, (byte)((PC >> 8) & 0x00FF));
+        write(STACK_BASE_ADDRESS + S--, (byte)((PC >>> 8) & 0x00FF));
         write(STACK_BASE_ADDRESS + S--, (byte)(PC & 0x00FF));
 
         // 设置状态寄存器（发生中断），将状态寄存器写入栈
@@ -1402,7 +1411,7 @@ public class CPU {
         absoluteAddress = 0xFFFA;
         PC = read16(absoluteAddress);
 
-        cycles = 8;
+        cycles += 8;
     }
 
     /**
@@ -1414,7 +1423,7 @@ public class CPU {
         // 将当前的现场写入栈
         if (getFlag(StatusFlag.I) == 0) {
             // 将PC（2字节）写入栈（先写入高8位）
-            write(STACK_BASE_ADDRESS + S--, (byte)((PC >> 8) & 0x00FF));
+            write(STACK_BASE_ADDRESS + S--, (byte)((PC >>> 8) & 0x00FF));
             write(STACK_BASE_ADDRESS + S--, (byte)(PC & 0x00FF));
 
             // 设置状态寄存器（发生中断），将状态寄存器写入栈
@@ -1428,7 +1437,7 @@ public class CPU {
             absoluteAddress = 0xFFFE;
             PC = read16(absoluteAddress);
 
-            cycles = 7;
+            cycles += 7;
         }
     }
 
@@ -1779,7 +1788,7 @@ public class CPU {
 
         // 保存现场
         // 将PC（2字节）写入栈（先写入高8位）
-        write(STACK_BASE_ADDRESS + S--, (byte)((PC >> 8) & 0x00FF));
+        write(STACK_BASE_ADDRESS + S--, (byte)((PC >>> 8) & 0x00FF));
         write(STACK_BASE_ADDRESS + S--, (byte)(PC & 0x00FF));
 
         // 设置状态寄存器（发生中断），将状态寄存器写入栈
@@ -2009,7 +2018,7 @@ public class CPU {
         // PC指向的是下一条指令的地址
         PC--;
 
-        write(STACK_BASE_ADDRESS + S--, (byte)((PC >> 8) & 0x00FF));
+        write(STACK_BASE_ADDRESS + S--, (byte)((PC >>> 8) & 0x00FF));
         write(STACK_BASE_ADDRESS + S--, (byte)(PC & 0x00FF));
 
         PC = absoluteAddress;
@@ -2066,7 +2075,7 @@ public class CPU {
      */
     public void LSR() {
         fetch();
-        int tmp = fetched >> 1;
+        int tmp = fetched >>> 1;
 
         setFlag(StatusFlag.Z, (tmp & 0x00FF) == 0 ? 1 : 0);
         setFlag(StatusFlag.C, (fetched & 0x01) == 0 ? 0 : 1);
@@ -2183,7 +2192,7 @@ public class CPU {
     public void ROR() {
         fetch();
 
-        int result = (fetched >> 1) | (getFlag(StatusFlag.C) << 7);
+        int result = (fetched >>> 1) | (getFlag(StatusFlag.C) << 7);
         setFlag(StatusFlag.C, (fetched & 0x0001) == 0 ? 0 : 1);
         setFlag(StatusFlag.Z, (result & 0x00FF) == 0 ? 1 : 0);
         setFlag(StatusFlag.N, (result & 0x80) == 0 ? 0 : 1);
@@ -2354,7 +2363,16 @@ public class CPU {
 
     // endregion
 
+    // region 非官方指令
 
+    /**
+     * Load A, Load X
+     */
+    public void LAX() {
+
+    }
+
+    // endregion
 
     void diasm(byte[] codes) {
         int len = codes.length;
@@ -2394,11 +2412,13 @@ public class CPU {
 
     void clock() {
         int tmpPC = PC;
-        operationCode = read(PC++) & 0xFF;
+        operationCode = read(PC++) & 0x00FF;
         setFlag(StatusFlag.U, 1);
 
         // 获取指令
         Instruction instruction = Instruction.fromCode(operationCode);
+
+        cycles = instruction.cycles;
 
         if (logging) {
             String operation = INSTRUCTION_SET[operationCode & 0xFF];
@@ -2419,7 +2439,6 @@ public class CPU {
             System.out.println(String.format("%04X: %-8s \t%s %-26s  A:%02X X:%02X Y:%02X P:%02X SP:%02X PPU: CYC: %d",
                     tmpPC, operationString, operation, parameters, A, X, Y, P, (byte)S, cycles));
         }
-
 
         // 执行指令（包含了寻址过程）
         instruction.operation(CPU.this);

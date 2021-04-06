@@ -8,19 +8,21 @@ import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
-import java.io.InputStream;
 
 public class Emulator extends Frame {
     private static CPU cpu = new CPU();
     private static PPU ppu = new PPU();
     private static CPUBus cpuBus = new CPUBus();
-    private static PPUBus ppuBus = new PPUBus();
 
-    private static NesRom nesRom;
+    private static Cartridge cartridge;
 
     private static final int SCREEN_WIDTH = 256;
     private static final int SCREEN_HEIGHT = 240;
     private static final int SCREEN_RATIO = 3;
+
+    private static final int PATTERN_TABLE_WIDTH = 128;
+    private static final int PATTERN_TABLE_HEIGHT = 128;
+    private static final int PATTERN_TABLE_RATIO = 6;
 
     private void addMenuBar() {
         MenuBar menuBar = new MenuBar();
@@ -61,13 +63,23 @@ public class Emulator extends Frame {
         setMenuBar(menuBar);
     }
 
+    private static Panel panel = new Panel() {
+        @Override
+        public void paint(Graphics g) {
+//            displayPatternTable();
+        }
+    };
+
     public Emulator() {
         setTitle("NesEmulator");
-        setSize(SCREEN_WIDTH * SCREEN_RATIO, SCREEN_HEIGHT * SCREEN_RATIO);
+//        setSize(SCREEN_WIDTH * SCREEN_RATIO, SCREEN_HEIGHT * SCREEN_RATIO);
         setBackground(Color.black);
         setLayout(new FlowLayout());
-
         addMenuBar();
+
+        panel.setPreferredSize(new Dimension(SCREEN_WIDTH * SCREEN_RATIO, SCREEN_HEIGHT * SCREEN_RATIO));
+        add(panel);
+        pack();
 
         addWindowListener(new WindowAdapter() {
             @Override
@@ -85,25 +97,14 @@ public class Emulator extends Frame {
 
         String romPath = "/nestest.nes";
 //        String romPath = "/896.nes";
-
-        // 1. 加载卡带数据到内存中
-        InputStream inputStream = Emulator.class.getResourceAsStream(romPath);
-//        URL url = Emulator.class.getResource("/");
-//        System.out.println(url.getPath());
-        nesRom = new NesRom(inputStream);
-        System.out.println(nesRom.header.toString());
+        cartridge = new Cartridge(romPath);
+        System.out.println(cartridge.header.toString());
 
         cpu.setBus(cpuBus);
-//        cpu.diasm(nesRom.prg);
+        cpuBus.setPpu(ppu);
+        cpuBus.setCartridge(cartridge);
 
-        System.arraycopy(nesRom.prg, 0, cpuBus.ram, 0x8000, nesRom.prg.length);
-
-        // PRG Mirror
-        if (nesRom.prg.length == 0x4000) {
-            System.arraycopy(nesRom.prg, 0, cpuBus.ram, 0xC000, nesRom.prg.length);
-        }
-
-        emulator.displayPatternTable(ppu.getPatternTable(nesRom.chr));
+        emulator.displayPatternTable(ppu.getPatternTable());
 
         int line = 0;
         cpu.reset();
@@ -125,16 +126,19 @@ public class Emulator extends Frame {
     }
 
     public void showPatternTableFrame() {
-        if (nesRom != null) {
-            PatternTableFrame patternTableFrame = new PatternTableFrame(ppu.getPatternTable(nesRom.chr));
+        if (cartridge != null) {
+            PatternTableFrame patternTableFrame = new PatternTableFrame(ppu.getPatternTable());
             patternTableFrame.displayPatternTable();
         }
     }
 
+    private byte[] palette = new byte[]{
+            0x22, 0x29, 0x1A, 0x0F, 0x0F, 0x36, 0x17, 0x0F, 0x0F, 0x30, 0x21, 0x0F, 0x0F, 0x17, 0x17, 0x0F, // Image Palette
+            0x22, 0x16, 0x27, 0x18, 0x0F, 0x1A, 0x30, 0x27, 0x0F, 0x16, 0x30, 0x27, 0x0F, 0x0F, 0x36, 0x17  // Sprite Palette
+    };
 
     public void displayPatternTable(byte[][][] table) {
-        BufferedImage bgImage = new BufferedImage(256*8,
-                256*8, BufferedImage.TYPE_3BYTE_BGR);
+        BufferedImage image = new BufferedImage(16*8, 16*8, BufferedImage.TYPE_3BYTE_BGR);
 
         byte[][] background = table[0];
         byte[][] sprite = table[1];
@@ -143,15 +147,16 @@ public class Emulator extends Frame {
 
         for (int k = 0; k < 256; k++) {
             for (int i = 0; i < 64; i++) {
+                // 这里只有颜色的后两位
                 switch (background[k][i]) {
                     case 1:
-                        bgImage.setRGB(startCol + i % 8, startRow + i / 8, Color.cyan.getRGB());
+                        image.setRGB(startCol + i % 8, startRow + i / 8, Color.cyan.getRGB());
                         break;
                     case 2:
-                        bgImage.setRGB(startCol + i % 8, startRow + i / 8, Color.orange.getRGB());
+                        image.setRGB(startCol + i % 8, startRow + i / 8, Color.orange.getRGB());
                         break;
                     case 3:
-                        bgImage.setRGB(startCol + i % 8, startRow + i / 8, Color.green.getRGB());
+                        image.setRGB(startCol + i % 8, startRow + i / 8, Color.green.getRGB());
                         break;
                 }
             }
@@ -164,10 +169,17 @@ public class Emulator extends Frame {
             }
         }
 
-        Graphics graphics = this.getGraphics();
-        int left = this.getInsets().left;
-        int right = this.getInsets().right;
+        Graphics graphics = this.panel.getGraphics();
+        graphics.drawImage(image,
+                0, 0,
+                PATTERN_TABLE_WIDTH * PATTERN_TABLE_RATIO,
+                PATTERN_TABLE_HEIGHT * PATTERN_TABLE_RATIO,
+                this.panel);
 
-        graphics.drawImage(bgImage, 150, 150, 256*16*2, 256*16*2,this);
+//        Graphics graphics = this.getGraphics();
+//        int left = this.getInsets().left;
+//        int right = this.getInsets().right;
+//
+//        graphics.drawImage(bgImage, 150, 150, 256*16*2, 256*16*2,this);
     }
 }
