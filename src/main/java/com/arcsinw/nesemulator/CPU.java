@@ -1381,8 +1381,8 @@ public class CPU {
         setFlag(StatusFlag.U, 1);
 
         absoluteAddress = 0xFFFC;
-//        PC = read16(absoluteAddress); // 实际上是0x8000
-        PC = 0xC000; // 调试nestest.nes
+        PC = read16(absoluteAddress); // 实际上是0x8000
+//        PC = 0xC000; // 调试nestest.nes
 
         absoluteAddress = 0x0000;
         relativeAddress = 0x0000;

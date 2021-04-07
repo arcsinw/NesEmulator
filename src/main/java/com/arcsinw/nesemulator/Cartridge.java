@@ -27,12 +27,16 @@ public class Cartridge implements CPUBusDevice{
         int chrBanksCount;
 
         /**
-         * Number of mapper
+         * Id of mapper
          */
         int mapperNo;
 
         boolean trainerFlag;
 
+        /**
+         * Mirroring: 0: horizontal (vertical arrangement) (CIRAM A10 = PPU A11)
+         *            1: vertical (horizontal arrangement) (CIRAM A10 = PPU A10)
+         */
         boolean mirrorFlag;
 
         public Header(byte[] bytes) {
@@ -47,7 +51,7 @@ public class Cartridge implements CPUBusDevice{
             prgBanksCount = bytes[4] & 0xFF;
             chrBanksCount = bytes[5] & 0xFF;
 
-            mapperNo = (bytes[7] & 0xF0) | (bytes[6] >> 4);
+            mapperNo = (bytes[7] & 0xF0) | (bytes[6] >>> 4);
 
             mirrorFlag = (bytes[6] & 0x01) != 0;
             trainerFlag = (bytes[6] & 0x04) != 0;

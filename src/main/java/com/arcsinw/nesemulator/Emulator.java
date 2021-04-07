@@ -95,14 +95,15 @@ public class Emulator extends Frame {
         Emulator emulator = new Emulator();
         emulator.setVisible(true);
 
-        String romPath = "/nestest.nes";
-//        String romPath = "/896.nes";
+//        String romPath = "/nestest.nes";
+        String romPath = "/896.nes";
         cartridge = new Cartridge(romPath);
         System.out.println(cartridge.header.toString());
 
         cpu.setBus(cpuBus);
         cpuBus.setPpu(ppu);
         cpuBus.setCartridge(cartridge);
+
 
         emulator.displayPatternTable(ppu.getPatternTable());
 
@@ -112,6 +113,9 @@ public class Emulator extends Frame {
         while (line++ < 9000) {
             cpu.clock();
         }
+
+        ppu.getNameTable();
+        ppu.getPalette();
     }
 
     public static String get2DArrayPrint(byte[] matrix) {
