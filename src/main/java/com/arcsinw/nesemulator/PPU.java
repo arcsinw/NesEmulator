@@ -16,7 +16,7 @@ public class PPU implements CPUBusDevice {
      * 0x0000 - 0x0FFF Pattern Table 0
      * 0x1000 - 0x1FFF Pattern Table 1
      */
-    private byte[][][] patternTable = new byte[2][256][64];
+    private byte[][] patternTable = new byte[2][256 * 16];
 
     /**
      * Name Table, 命名表 (VRAM, CIRAM)
@@ -33,11 +33,11 @@ public class PPU implements CPUBusDevice {
      * 0x3F10 - 0x3F1F Sprite Palette
      * 0x3F20 - 0x3FFF Mirrors
      */
-//    private byte[] palette = new byte[2 * 16];
-    private byte[] palette = new byte[]{
-            0x22, 0x29, 0x1A, 0x0F, 0x0F, 0x36, 0x17, 0x0F, 0x0F, 0x30, 0x21, 0x0F, 0x0F, 0x17, 0x17, 0x0F, // Image Palette
-            0x22, 0x16, 0x27, 0x18, 0x0F, 0x1A, 0x30, 0x27, 0x0F, 0x16, 0x30, 0x27, 0x0F, 0x0F, 0x36, 0x17  // Sprite Palette
-    };
+    private byte[] palette = new byte[2 * 16];
+//    private byte[] palette = new byte[]{
+//            0x22, 0x29, 0x1A, 0x0F, 0x0F, 0x36, 0x17, 0x0F, 0x0F, 0x30, 0x21, 0x0F, 0x0F, 0x17, 0x17, 0x0F, // Image Palette
+//            0x22, 0x16, 0x27, 0x18, 0x0F, 0x1A, 0x30, 0x27, 0x0F, 0x16, 0x30, 0x27, 0x0F, 0x0F, 0x36, 0x17  // Sprite Palette
+//    };
 
     // endregion
 
@@ -45,36 +45,38 @@ public class PPU implements CPUBusDevice {
 
     enum PPUCtrl {
         /**
-         * 	NMI enable
+         * 	Generate an NMI at the start of the
+         *  vertical blanking interval (0: off; 1: on)
          */
         NmiEnable(1 << 7),
         /**
-         * PPU master/slave
+         * PPU master/slave select
+         * (0: read backdrop from EXT pins; 1: output color on EXT pins)
          */
         SlaveMode(1 << 6),
         /**
-         * sprite height
+         * Sprite size (0: 8x8 pixels; 1: 8x16 pixels)
          */
-        SpriteHeight(1 << 5),
+        SpriteSize(1 << 5),
         /**
-         * background tile select
+         * Background pattern table address (0: $0000; 1: $1000)
          */
         BackgroundSelect(1 << 4),
         /**
-         * sprite tile select
+         * Sprite pattern table address for 8x8 sprites
+         * (0: $0000; 1: $1000; ignored in 8x16 mode)
          */
         SpriteSelect(1 << 3),
         /**
-         * increment mode
+         * VRAM address increment per CPU read/write of PPUDATA
+         * (0: add 1, going across; 1: add 32, going down)
          */
         IncrementMode(1 << 2),
         /**
-         * nametable select x
+         * Base nametable address 2bit
+         * (0 = $2000; 1 = $2400; 2 = $2800; 3 = $2C00)
          */
         NameTableSelectX(1 << 1),
-        /**
-         * nametable select y
-         */
         NameTableSelectY(1 << 0);
 
         private int mask;
@@ -318,22 +320,11 @@ public class PPU implements CPUBusDevice {
      * @return
      */
     public byte[][] getNameTable() {
-        byte[][] result = new byte[2][1024];
-        for (int i = 0; i < 2; i++) {
-            for (int j = 0; j < 1024; j++) {
-                result[i][j] = ppuRead(0x2000 + 0x400 * i + j);
-            }
-        }
-        return result;
+        return nameTable;
     }
 
     public byte[] getPalette() {
-        byte[] result = new byte[2 * 16];
-        for (int i = 0; i < 32; i++) {
-            result[i] = ppuRead(0x3F00 + i);
-        }
-
-        return result;
+        return palette;
     }
 
     /**
@@ -370,7 +361,7 @@ public class PPU implements CPUBusDevice {
                 break;
             case 0x0007: // PPU Data
                 ppuWrite(tmpPpuAddress, data);
-                tmpPpuAddress++;
+                tmpPpuAddress += (getPpuCtrl(PPUCtrl.IncrementMode) == 0 ? 1 : 32);
                 break;
         }
     }
@@ -379,6 +370,12 @@ public class PPU implements CPUBusDevice {
     private boolean isFirstPpuAddress = true;
     private byte ppuDataBuffer = 0x00;
 
+    /**
+     *
+     * 读取寄存器时可能会改变它们的值
+     * @param address 数据地址
+     * @return
+     */
     @Override
     public byte cpuRead(int address) {
         byte data = 0x00;
@@ -408,11 +405,11 @@ public class PPU implements CPUBusDevice {
                 ppuDataBuffer = ppuRead(tmpPpuAddress);
 
                 // 读取Palettes没有延迟
-                if (tmpPpuAddress > 0x3F00) {
+                if (tmpPpuAddress >= 0x3F00) {
                     data = ppuDataBuffer;
                 }
 
-                tmpPpuAddress++;
+                tmpPpuAddress += (getPpuCtrl(PPUCtrl.IncrementMode) == 0 ? 1 : 32);
                 break;
         }
 
@@ -422,6 +419,11 @@ public class PPU implements CPUBusDevice {
     public void ppuWrite(int address, byte data) {
         address &= 0x3FFF;
 
+        if (address >= 0x0000 && address <= 0x1FFF) {
+            // Pattern table
+//            cartridge.ppuWrite(address, data);
+            patternTable[(address & 0x1000) >> 12][address & 0x0FFF] = data;
+        }
         if (address >= 0x2000 && address <= 0x3EFF) {
             // Name Tables 实际地址 0x2000 - 0x2FFF 其余是Mirror
             // 最多有4个Name Table
@@ -465,6 +467,52 @@ public class PPU implements CPUBusDevice {
     public byte ppuRead(int address) {
         address &= 0x3FFF;
 
-        return 0;
+        byte data = 0x00;
+
+        if (address >= 0x0000 && address <= 0x1FFF) {
+            // Pattern table
+            data = cartridge.ppuRead(address);
+//            data = patternTable[(address & 0x1000) >> 12][address & 0x0FFF];
+        }
+        if (address >= 0x2000 && address <= 0x3EFF) {
+            // Name Tables 实际地址 0x2000 - 0x2FFF 其余是Mirror
+            // 最多有4个Name Table
+            address &= 0x0FFF;
+            if (this.cartridge.header.mirrorFlag) // vertical mirror
+            {
+                // Vertical
+                if (address >= 0x0000 && address <= 0x03FF)
+                    data = nameTable[0][address & 0x03FF];
+                if (address >= 0x0400 && address <= 0x07FF)
+                    data = nameTable[1][address & 0x03FF];
+                if (address >= 0x0800 && address <= 0x0BFF)
+                    data = nameTable[0][address & 0x03FF];
+                if (address >= 0x0C00 && address <= 0x0FFF)
+                    data = nameTable[1][address & 0x03FF];
+            }
+            else // horizontal mirror
+            {
+                // Horizontal
+                if (address >= 0x0000 && address <= 0x03FF)
+                    data = nameTable[0][address & 0x03FF];
+                if (address >= 0x0400 && address <= 0x07FF)
+                    data = nameTable[0][address & 0x03FF];
+                if (address >= 0x0800 && address <= 0x0BFF)
+                    data = nameTable[1][address & 0x03FF];
+                if (address >= 0x0C00 && address <= 0x0FFF)
+                    data = nameTable[1][address & 0x03FF];
+            }
+        }
+        else if (address >= 0x3F00 && address <= 0x3FFF) {
+            // Palettes 真实地址 0x3F00 - 0x3F1F 剩下的是Mirrors
+            address &= 0x001F;  // % 32
+            if (address == 0x0010) address = 0x0000;
+            if (address == 0x0014) address = 0x0004;
+            if (address == 0x0018) address = 0x0008;
+            if (address == 0x001C) address = 0x000C;
+            data = palette[address];
+        }
+
+        return data;
     }
 }

@@ -120,7 +120,7 @@ public class Cartridge implements CPUBusDevice{
             return prg[address & (header.prgBanksCount == 1 ? 0x3FFF : 0x7FFF)];
         }
 
-        return 0;
+        return 0x00;
     }
 
     /**
@@ -141,7 +141,11 @@ public class Cartridge implements CPUBusDevice{
      * @return
      */
     public byte ppuRead(int address) {
-        return chr[address];
+        if (address >= 0x0000 && address <= 0x1FFF) {
+            return chr[address];
+        }
+
+        return 0x00;
     }
 
     public Cartridge(InputStream inputStream) throws IOException {

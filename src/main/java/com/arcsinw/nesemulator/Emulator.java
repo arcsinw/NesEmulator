@@ -95,8 +95,8 @@ public class Emulator extends Frame {
         Emulator emulator = new Emulator();
         emulator.setVisible(true);
 
-//        String romPath = "/nestest.nes";
-        String romPath = "/896.nes";
+        String romPath = "/nestest.nes";
+//        String romPath = "/896.nes";
         cartridge = new Cartridge(romPath);
         System.out.println(cartridge.header.toString());
 
@@ -110,7 +110,7 @@ public class Emulator extends Frame {
         int line = 0;
         cpu.reset();
 
-        while (line++ < 9000) {
+        while (line++ < 300000) {
             cpu.clock();
         }
 
@@ -121,8 +121,9 @@ public class Emulator extends Frame {
     public static String get2DArrayPrint(byte[] matrix) {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < (matrix.length / 16); i++) {
+            sb.append(String.format("%02X : ", i * 16));
             for (int j = 0; j < 16; j++) {
-                sb.append(matrix[i* 16 + j] + "\t");
+                sb.append(String.format("%02X\t", matrix[i* 16 + j]));
             }
             sb.append("\n");
         }

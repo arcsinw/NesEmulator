@@ -2366,10 +2366,14 @@ public class CPU {
     // region 非官方指令
 
     /**
-     * Load A, Load X
+     * Load A then transfer to X
      */
     public void LAX() {
+        LDA();
+        X = A;
 
+        setFlag(StatusFlag.Z, X == 0 ? 1 : 0);
+        setFlag(StatusFlag.N, (X & 0x80) == 0 ? 0 : 1);
     }
 
     // endregion
