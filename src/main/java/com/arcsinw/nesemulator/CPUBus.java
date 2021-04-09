@@ -16,7 +16,7 @@ public class CPUBus {
 
     private CPU cpu;
 
-    private PPU ppu;
+    public PPU ppu;
 
     private APU apu;
 
@@ -63,16 +63,19 @@ public class CPUBus {
      * @return 8bit 数据
      */
     public byte read(int address) {
+        byte data = 0x00;
         if (address >= 0x0000 && address <= 0x1FFF) {
-            return cpuRAM[address & 0x07FF];
+            data = cpuRAM[address & 0x07FF];
         } else if (address >= 0x2000 && address <= 0x3FFF) {
             // 0x2000 - 0x2007 是PPU的寄存器，其余是mirror
-            return ppu.cpuRead(address & 0x0007);
+            data = ppu.cpuRead(address & 0x0007);
+        } else if (address >= 0x4016 && address <= 0x4017) {
+
         } else if (address >= 0x8000 && address <= 0xFFFF) {
-            return cartridge.cpuRead(address);
+            data = cartridge.cpuRead(address);
         }
 
-        return 0x00;
+        return data;
     }
 
     public void setCartridge(Cartridge cartridge) {
@@ -82,5 +85,18 @@ public class CPUBus {
 
     public void setPpu(PPU ppu) {
         this.ppu = ppu;
+    }
+
+    private long cycles;
+
+    public void clock() {
+        ppu.clock();
+
+        // PPU 的运行速度是 CPU 的3倍， 同步时钟周期
+        if (cycles % 3 == 0) {
+            cpu.clock();
+        }
+
+        cycles++;
     }
 }

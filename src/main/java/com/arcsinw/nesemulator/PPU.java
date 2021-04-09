@@ -34,10 +34,6 @@ public class PPU implements CPUBusDevice {
      * 0x3F20 - 0x3FFF Mirrors
      */
     private byte[] palette = new byte[2 * 16];
-//    private byte[] palette = new byte[]{
-//            0x22, 0x29, 0x1A, 0x0F, 0x0F, 0x36, 0x17, 0x0F, 0x0F, 0x30, 0x21, 0x0F, 0x0F, 0x17, 0x17, 0x0F, // Image Palette
-//            0x22, 0x16, 0x27, 0x18, 0x0F, 0x1A, 0x30, 0x27, 0x0F, 0x16, 0x30, 0x27, 0x0F, 0x0F, 0x36, 0x17  // Sprite Palette
-//    };
 
     // endregion
 
@@ -254,6 +250,8 @@ public class PPU implements CPUBusDevice {
 
     public void setCartridge(Cartridge cartridge) {
         this.cartridge = cartridge;
+        System.arraycopy(this.cartridge.chr, 0, patternTable[0], 0, 4096);
+        System.arraycopy(this.cartridge.chr, 0, patternTable[1], 0, 4096);
     }
 
     /**
@@ -311,6 +309,10 @@ public class PPU implements CPUBusDevice {
         }
 
         return result;
+    }
+
+    public byte[][] getPatternTable2() {
+        return this.patternTable;
     }
 
     /**
@@ -514,5 +516,13 @@ public class PPU implements CPUBusDevice {
         }
 
         return data;
+    }
+
+    public void clock() {
+
+    }
+
+    public int getAddress() {
+        return tmpPpuAddress;
     }
 }

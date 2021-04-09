@@ -81,7 +81,7 @@ public class Cartridge implements CPUBusDevice{
     /**
      * Character
      */
-    byte[] chr;
+    public byte[] chr;
 
     /**
      * SRAM

@@ -1379,6 +1379,7 @@ public class CPU {
         P = 0x00;
 
         setFlag(StatusFlag.U, 1);
+        setFlag(StatusFlag.I, 1); // 测试用
 
         absoluteAddress = 0xFFFC;
         PC = read16(absoluteAddress); // 实际上是0x8000
@@ -1467,8 +1468,7 @@ public class CPU {
      * $00 - $FF 页号为0，可省略，使指令变为2字节
      */
     public byte ZP0() {
-        absoluteAddress = read(PC);
-        PC++;
+        absoluteAddress = read(PC++);
         absoluteAddress &= 0x00FF;
         return 0;
     }
@@ -1477,8 +1477,7 @@ public class CPU {
      * 零页X变址 Zero-page X Indexed Addressing 双字节
      */
     public byte ZPX() {
-        absoluteAddress = read(PC) + X;
-        PC++;
+        absoluteAddress = read(PC++) + X;
         absoluteAddress &= 0x00FF;
         return 0;
     }
@@ -1487,8 +1486,7 @@ public class CPU {
      * 零页Y变址 Zero-page Y Indexed Addressing 双字节
      */
     public byte ZPY() {
-        absoluteAddress = read(PC) + Y;
-        PC++;
+        absoluteAddress = read(PC++) + Y;
         absoluteAddress &= 0x00FF;
         return 0;
     }
@@ -1521,14 +1519,19 @@ public class CPU {
      * 绝对X变址 Absolute X Indexed Addressing 三字节
      */
     public byte ABX() {
-        int lowAddress = read(PC++);
-        int highAddress = read(PC++);
+        int tmp = read16(PC);
+        PC += 2;
 
-        absoluteAddress = (highAddress << 8) | lowAddress;
-        absoluteAddress += X;
+//        int lowAddress = read(PC++);
+//        int highAddress = read(PC++);
+//        absoluteAddress = (highAddress << 8) | lowAddress;
+
+        absoluteAddress = tmp + X;
 
         // 发生内存换页
-        if ((absoluteAddress & 0xFF00) != (highAddress << 8)) {
+//        if ((absoluteAddress & 0xFF00) != (highAddress << 8)) {
+        if ((absoluteAddress & 0xFF00) != (tmp & 0xFF00)) {
+            cycles += 1;
             return 1;
         } else {
             return 0;
@@ -1539,14 +1542,19 @@ public class CPU {
      * 绝对Y变址 Absolute Y Indexed Addressing 三字节
      */
     public byte ABY() {
-        int lowAddress = read(PC++);
-        int highAddress = read(PC++);
+        int tmp = read16(PC);
+        PC += 2;
 
-        absoluteAddress = (highAddress << 8) | lowAddress;
+//        int lowAddress = read(PC++);
+//        int highAddress = read(PC++);
+//        absoluteAddress = (highAddress << 8) | lowAddress;
+
         absoluteAddress += Y;
 
         // 发生内存换页
-        if ((absoluteAddress & 0xFF00) != (highAddress << 8)) {
+        //        if ((absoluteAddress & 0xFF00) != (highAddress << 8)) {
+        if ((absoluteAddress & 0xFF00) != (tmp & 0xFF00)) {
+            cycles += 1;
             return 1;
         } else {
             return 0;
@@ -1566,7 +1574,8 @@ public class CPU {
         // 地址跨页一定发生在下一个字节上
         int address2 = (address & 0xFF00) | ((address + 1) & 0x00FF);
 
-        absoluteAddress = ((read(address2) & 0x00FF) << 8) | (read(address) & 0x00FF);
+        absoluteAddress = read16(address2);
+//        absoluteAddress = ((read(address2) & 0x00FF) << 8) | (read(address) & 0x00FF);
         return 0;
     }
 
@@ -1578,7 +1587,8 @@ public class CPU {
      */
     public byte IZX() {
         int address = read(PC++) + X;
-        absoluteAddress = (read(address) & 0x00FF) | ((read(address + 1) & 0x00FF) << 8);
+        absoluteAddress = read16(address);
+
         return 0;
     }
 
@@ -1591,9 +1601,10 @@ public class CPU {
 
         int lo = read(address & 0x00FF); // 零页地址
         int hi = read((address + 1) & 0x00FF);
-        absoluteAddress = ((hi << 8) | lo) + Y;
+        absoluteAddress = (((hi & 0x00FF) << 8) | (lo & 0x00FF)) + Y;
 
         if ((absoluteAddress & 0xFF00) != (hi << 8)) {
+            cycles += 1;
             return 1;
         } else {
             return 0;
@@ -1612,13 +1623,13 @@ public class CPU {
     public void ADC() {
         fetch();
 
-        int tmp = A + fetched + getFlag(StatusFlag.C);
+        int tmp = (A & 0x00FF) + (fetched & 0x00FF) + getFlag(StatusFlag.C);
         setFlag(StatusFlag.C, tmp > 255 ? 1 : 0);
         setFlag(StatusFlag.Z, (tmp & 0x00FF) == 0 ? 1 : 0);
         setFlag(StatusFlag.N, (tmp & 0x80) == 0 ? 0 : 1);
         // A + M + C = R
-        // FLAG_V = (A ^ M) & (~(A ^ R)) & 0x80 只看符号位
-        setFlag(StatusFlag.V, ((A ^ fetched) & (~(A ^ tmp)) & 0x80) == 0 ? 0: 1);
+        // FLAG_V = (~(A ^ M)) & (A ^ R) & 0x80 只看符号位
+        setFlag(StatusFlag.V, (~(A ^ fetched) & ((A ^ tmp)) & 0x0080) == 0 ? 0: 1);
 
         A = (byte)(tmp & 0x00FF);
     }
@@ -1880,7 +1891,6 @@ public class CPU {
 
         setFlag(StatusFlag.N, (result & 0x80) == 0 ? 0 : 1);
 
-        // TODO 处理return 1
         cycles++;
     }
 
@@ -2428,20 +2438,28 @@ public class CPU {
             String operation = INSTRUCTION_SET[operationCode & 0xFF];
             int operationLength = INSTRUCTION_LENGTH[operationCode & 0xFF];
 
-            String operationString = String.format("%02X", operationCode);
+            StringBuilder operationCodeString = new StringBuilder(String.format("%02X", operationCode));
             String parameters = "";
 
             for (int i = 1; i < operationLength; i++) {
                 parameters = String.format("%02X", read(tmpPC + i)) + parameters;
-                operationString += " " + String.format("%02X", read(tmpPC + i));
+                operationCodeString.append(" " + String.format("%02X", read(tmpPC + i)));
             }
+
 
             if (!parameters.isEmpty()) {
                 parameters = "$" + parameters;
             }
 
-            System.out.println(String.format("%04X: %-8s \t%s %-26s  A:%02X X:%02X Y:%02X P:%02X SP:%02X PPU: CYC: %d",
-                    tmpPC, operationString, operation, parameters, A, X, Y, P, (byte)S, cycles));
+            if (instruction.addressingMode == AddressingMode.Immediate) {
+                parameters = "#" + parameters;
+            }
+
+//            System.out.println(String.format("%04X  %-8s \t%s %-26s  A:%02X X:%02X Y:%02X P:%02X SP:%02X PPU: %04X CYC: %d",
+//                    tmpPC, operationCodeString.toString(), operation, parameters, A, X, Y, P, (byte)S, bus.ppu.getAddress(), cycles));
+
+            System.out.println(String.format("%04X  %-8s  %s %-26s  A:%02X X:%02X Y:%02X P:%02X SP:%02X",
+                    tmpPC, operationCodeString.toString(), operation, parameters, A, X, Y, P, (byte)S));
         }
 
         // 执行指令（包含了寻址过程）
