@@ -2,7 +2,6 @@ package com.arcsinw.nesemulator.ui;
 
 
 import com.arcsinw.nesemulator.ColorPalette;
-import org.w3c.dom.css.Rect;
 
 import java.awt.*;
 import java.awt.event.WindowAdapter;

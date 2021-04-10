@@ -97,6 +97,11 @@ public class CPUBus {
             cpu.clock();
         }
 
+        if (ppu.nmi) {
+            ppu.nmi = false;
+            cpu.nmi();
+        }
+
         cycles++;
     }
 }

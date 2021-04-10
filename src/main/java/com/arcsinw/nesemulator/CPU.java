@@ -12,7 +12,7 @@ public class CPU {
     private int fetched = 0x00;
 
     private int absoluteAddress = 0x0000;
-    private int relativeAddress = 0x00;
+    private byte relativeAddress = 0x00;
     private int cycles = 0;
     private int operationCode = 0x00;
 
@@ -28,7 +28,7 @@ public class CPU {
     // region debug only
 
     int clockCount = 0;
-    boolean logging = true;
+    boolean logging = false;
 
     // endregion
 
@@ -124,6 +124,7 @@ public class CPU {
 
     /**
      * 指令的寻址模式
+     * 0表示隐含寻址 或 该指令不存在
      */
     public static final int[] INSTRUCTION_ADDRESSING_MODE = {
          // 0  1   2  3  4  5  6  7  8  9  A  B  C  D  E  F
@@ -165,7 +166,7 @@ public class CPU {
     };
 
     public enum AddressingMode {
-        Implied(0),
+        Implied(0),  // 隐含寻址，无需明确指出操作地址，如CLC，RTS
         Accumulator(1),
         Immediate(2),
         ZeroPage(3),
@@ -1379,14 +1380,14 @@ public class CPU {
         P = 0x00;
 
         setFlag(StatusFlag.U, 1);
-        setFlag(StatusFlag.I, 1); // 测试用
+//        setFlag(StatusFlag.I, 1); // 测试用
 
         absoluteAddress = 0xFFFC;
         PC = read16(absoluteAddress); // 实际上是0x8000
 //        PC = 0xC000; // 调试nestest.nes
 
         absoluteAddress = 0x0000;
-        relativeAddress = 0x0000;
+        relativeAddress = 0x00;
         fetched = 0x00;
 
         cycles += 8;
@@ -1449,9 +1450,10 @@ public class CPU {
 
     /**
      * 隐含寻址 Implied Addressing 单字节指令
+     * 目前作为 寄存器寻址 Accumulator Addressing 使用
      */
     public byte IMP() {
-        fetched = A;
+        fetched = (A & 0x00FF);
         return 0;
     }
 
@@ -1497,9 +1499,9 @@ public class CPU {
      */
     public byte REL() {
         relativeAddress = read(PC++);
-        if ((relativeAddress & 0x80) != 0) { // 检查相对地址是否为负数
-            relativeAddress |= 0xFF00; // 相对地址是1字节，但内存的地址是2字节，将地址的前面置为1表示负数
-        }
+//        if ((relativeAddress & 0x80) != 0) { // 检查相对地址是否为负数
+//            relativeAddress |= 0xFF00; // 相对地址是1字节，但内存的地址是2字节，将地址的前面置为1表示负数
+//        }
 
         return 0;
     }
@@ -1526,7 +1528,7 @@ public class CPU {
 //        int highAddress = read(PC++);
 //        absoluteAddress = (highAddress << 8) | lowAddress;
 
-        absoluteAddress = tmp + X;
+        absoluteAddress = (tmp + (X & 0xFF)) & 0xFFFF;
 
         // 发生内存换页
 //        if ((absoluteAddress & 0xFF00) != (highAddress << 8)) {
@@ -1549,7 +1551,7 @@ public class CPU {
 //        int highAddress = read(PC++);
 //        absoluteAddress = (highAddress << 8) | lowAddress;
 
-        absoluteAddress += Y;
+        absoluteAddress = (tmp + (Y & 0xFF)) & 0xFFFF;
 
         // 发生内存换页
         //        if ((absoluteAddress & 0xFF00) != (highAddress << 8)) {
@@ -1574,8 +1576,7 @@ public class CPU {
         // 地址跨页一定发生在下一个字节上
         int address2 = (address & 0xFF00) | ((address + 1) & 0x00FF);
 
-        absoluteAddress = read16(address2);
-//        absoluteAddress = ((read(address2) & 0x00FF) << 8) | (read(address) & 0x00FF);
+        absoluteAddress = ((read(address2) & 0x00FF) << 8) | (read(address) & 0x00FF);
         return 0;
     }
 
@@ -1586,8 +1587,12 @@ public class CPU {
      * 再使用这个新地址进行间接寻址
      */
     public byte IZX() {
-        int address = read(PC++) + X;
-        absoluteAddress = read16(address);
+        int address = read(PC++);
+
+        int lo = read((address + X) & 0x00FF);
+        int hi = read((address + X + 1) & 0x00FF);
+
+        absoluteAddress = (((hi & 0x00FF) << 8) | (lo & 0x00FF));
 
         return 0;
     }
@@ -1601,7 +1606,7 @@ public class CPU {
 
         int lo = read(address & 0x00FF); // 零页地址
         int hi = read((address + 1) & 0x00FF);
-        absoluteAddress = (((hi & 0x00FF) << 8) | (lo & 0x00FF)) + Y;
+        absoluteAddress = ((((hi & 0x00FF) << 8) | (lo & 0x00FF)) + (Y & 0xFF)) & 0xFFFF; // 保证absoluteAddress是16位
 
         if ((absoluteAddress & 0xFF00) != (hi << 8)) {
             cycles += 1;
@@ -1629,7 +1634,7 @@ public class CPU {
         setFlag(StatusFlag.N, (tmp & 0x80) == 0 ? 0 : 1);
         // A + M + C = R
         // FLAG_V = (~(A ^ M)) & (A ^ R) & 0x80 只看符号位
-        setFlag(StatusFlag.V, (~(A ^ fetched) & ((A ^ tmp)) & 0x0080) == 0 ? 0: 1);
+        setFlag(StatusFlag.V, ((~(A ^ fetched) & (A ^ tmp)) & 0x0080) == 0 ? 0: 1);
 
         A = (byte)(tmp & 0x00FF);
     }
@@ -1653,10 +1658,10 @@ public class CPU {
      */
     public void ASL() {
         fetch();
-        int tmp = fetched << 1;
+        int tmp = (fetched << 1) & 0x0FFF;
 
-        setFlag(StatusFlag.Z, (A & 0x00FF) == 0 ? 1 : 0);
-        setFlag(StatusFlag.C, (fetched & 0x80) == 0 ? 0 : 1);
+        setFlag(StatusFlag.Z, (tmp & 0x00FF) == 0 ? 1 : 0);
+        setFlag(StatusFlag.C, (tmp & 0xFF00) > 0 ? 1 : 0);
         setFlag(StatusFlag.N, (tmp & 0x80) == 0 ? 0 : 1);
 
         if (INSTRUCTION_ADDRESSING_MODE[operationCode] ==
@@ -1710,7 +1715,7 @@ public class CPU {
     public void BEQ() {
         if (getFlag(StatusFlag.Z) == 1) {
             cycles++;
-            absoluteAddress = PC + relativeAddress;
+            absoluteAddress = (PC + relativeAddress) & 0xFFFF;
 
             // 如果跨页则增加一个时钟周期
             if ((absoluteAddress & 0xFF00) != (PC & 0xFF00)) {
@@ -1884,7 +1889,7 @@ public class CPU {
      */
     public void CMP() {
         fetch();
-        int result = A - fetched;
+        int result = (A & 0x00FF) - (fetched & 0x00FF);
 
         setFlag(StatusFlag.C, result >= 0 ? 1 : 0);
         setFlag(StatusFlag.Z, result == 0 ? 1 : 0);
@@ -1900,7 +1905,7 @@ public class CPU {
      */
     public void CPX() {
         fetch();
-        int result = X - fetched;
+        int result = (X & 0x00FF) - (fetched & 0x00FF);
 
         setFlag(StatusFlag.C, result >= 0 ? 1 : 0);
         setFlag(StatusFlag.Z, result == 0 ? 1 : 0);
@@ -1914,7 +1919,7 @@ public class CPU {
      */
     public void CPY() {
         fetch();
-        int result = Y - fetched;
+        int result = (Y & 0x00FF) - (fetched & 0x00FF);
 
         setFlag(StatusFlag.C, result >= 0 ? 1 : 0);
         setFlag(StatusFlag.Z, result == 0 ? 1 : 0);
@@ -2085,11 +2090,11 @@ public class CPU {
      */
     public void LSR() {
         fetch();
-        int tmp = fetched >>> 1;
 
+        setFlag(StatusFlag.C, (fetched & 0x0001) == 0 ? 0 : 1);
+        int tmp = (fetched & 0x00FF) >>> 1;
         setFlag(StatusFlag.Z, (tmp & 0x00FF) == 0 ? 1 : 0);
-        setFlag(StatusFlag.C, (fetched & 0x01) == 0 ? 0 : 1);
-        setFlag(StatusFlag.N, (tmp & 0x80) == 0 ? 0 : 1);
+        setFlag(StatusFlag.N, (tmp & 0x0080) == 0 ? 0 : 1);
 
         if (INSTRUCTION_ADDRESSING_MODE[operationCode] ==
                 AddressingMode.Accumulator.key) {
@@ -2181,9 +2186,8 @@ public class CPU {
     public void ROL() {
         fetch();
 
-        int result = (fetched << 1) | getFlag(StatusFlag.C);
+        int result = ((fetched << 1) & 0x0FFF) | getFlag(StatusFlag.C); // 保证fetched << 1是正数
         setFlag(StatusFlag.C, (result & 0xFF00) > 0 ? 1 : 0);
-
         setFlag(StatusFlag.Z, (result & 0x00FF) == 0 ? 1 : 0);
         setFlag(StatusFlag.N, (result & 0x80) == 0 ? 0 : 1);
 
@@ -2202,8 +2206,8 @@ public class CPU {
     public void ROR() {
         fetch();
 
-        int result = (fetched >>> 1) | (getFlag(StatusFlag.C) << 7);
-        setFlag(StatusFlag.C, (fetched & 0x0001) == 0 ? 0 : 1);
+        int result = (fetched >>> 1) | ((getFlag(StatusFlag.C) << 7) & 0x0FFF);
+        setFlag(StatusFlag.C, (fetched & 0x01) == 0 ? 0 : 1);
         setFlag(StatusFlag.Z, (result & 0x00FF) == 0 ? 1 : 0);
         setFlag(StatusFlag.N, (result & 0x80) == 0 ? 0 : 1);
 
@@ -2226,8 +2230,7 @@ public class CPU {
         setFlag(StatusFlag.U, 0);
 
         S++;
-        PC = read16(STACK_BASE_ADDRESS + S);
-        S++;
+        PC = read16(STACK_BASE_ADDRESS + S++);
     }
 
     /**
@@ -2236,8 +2239,7 @@ public class CPU {
      */
     public void RTS() {
         S++;
-        PC = read16(STACK_BASE_ADDRESS + S);
-        S++;
+        PC = read16(STACK_BASE_ADDRESS + S++);
 
         PC++;
     }
@@ -2251,16 +2253,18 @@ public class CPU {
         fetch();
 
         // M按位取反
-        int value = fetched ^ 0x00FF;
+        int value = (fetched & 0x00FF) ^ 0x00FF;
 
-        int tmp = A + value + getFlag(StatusFlag.C);
+        int tmp = (A & 0x00FF) + value + getFlag(StatusFlag.C);
 
         setFlag(StatusFlag.C, (tmp & 0xFF00) == 0 ? 0 : 1);
-        setFlag(StatusFlag.Z, (tmp & 0x00FF) == 0 ? 0 : 1);
-        setFlag(StatusFlag.V, ((tmp ^ A) & (tmp ^ value) & 0x0080) == 0 ? 0 : 1);
+        setFlag(StatusFlag.Z, (tmp & 0x00FF) == 0 ? 1 : 0);
+        setFlag(StatusFlag.V, ((tmp ^ (A & 0x00FF)) & (tmp ^ value) & 0x0080) == 0 ? 0 : 1);
         setFlag(StatusFlag.N, (tmp & 0x80) == 0 ? 0 : 1);
 
         A = (byte)(tmp & 0x00FF);
+
+        cycles += 1;
     }
 
     /**
@@ -2396,7 +2400,7 @@ public class CPU {
         while (start < len - 1) {
             byte operationCode = codes[start];
 
-            String operation = INSTRUCTION_SET[operationCode & 0xFF];
+            String operationName = INSTRUCTION_SET[operationCode & 0xFF];
             int operationLength = INSTRUCTION_LENGTH[operationCode & 0xFF];
 
             String operationString = String.format("%02X", operationCode);
@@ -2411,7 +2415,7 @@ public class CPU {
                 parameters = "$" + parameters;
             }
 
-            System.out.println(String.format("%04X: %-8s \t%s %s", start, operationString, operation, parameters));
+            System.out.println(String.format("%04X: %-8s \t%s %s", start, operationString, operationName, parameters));
             start += operationLength;
         }
     }
@@ -2435,31 +2439,33 @@ public class CPU {
         cycles = instruction.cycles;
 
         if (logging) {
-            String operation = INSTRUCTION_SET[operationCode & 0xFF];
+            String operationName = INSTRUCTION_SET[operationCode & 0xFF];
             int operationLength = INSTRUCTION_LENGTH[operationCode & 0xFF];
 
             StringBuilder operationCodeString = new StringBuilder(String.format("%02X", operationCode));
             String parameters = "";
+            if (INSTRUCTION_ADDRESSING_MODE[operationCode & 0xFF] == AddressingMode.Accumulator.key) {
+                parameters += "A";
+            } else {
+                for (int i = 1; i < operationLength; i++) {
+                    parameters = String.format("%02X", read(tmpPC + i)) + parameters;
+                    operationCodeString.append(" " + String.format("%02X", read(tmpPC + i)));
+                }
 
-            for (int i = 1; i < operationLength; i++) {
-                parameters = String.format("%02X", read(tmpPC + i)) + parameters;
-                operationCodeString.append(" " + String.format("%02X", read(tmpPC + i)));
-            }
+                if (!parameters.isEmpty()) {
+                    parameters = "$" + parameters;
+                }
 
-
-            if (!parameters.isEmpty()) {
-                parameters = "$" + parameters;
-            }
-
-            if (instruction.addressingMode == AddressingMode.Immediate) {
-                parameters = "#" + parameters;
+                if (instruction.addressingMode == AddressingMode.Immediate) {
+                    parameters = "#" + parameters;
+                }
             }
 
 //            System.out.println(String.format("%04X  %-8s \t%s %-26s  A:%02X X:%02X Y:%02X P:%02X SP:%02X PPU: %04X CYC: %d",
 //                    tmpPC, operationCodeString.toString(), operation, parameters, A, X, Y, P, (byte)S, bus.ppu.getAddress(), cycles));
 
             System.out.println(String.format("%04X  %-8s  %s %-26s  A:%02X X:%02X Y:%02X P:%02X SP:%02X",
-                    tmpPC, operationCodeString.toString(), operation, parameters, A, X, Y, P, (byte)S));
+                    tmpPC, operationCodeString.toString(), operationName, parameters, A, X, Y, P, (byte)S));
         }
 
         // 执行指令（包含了寻址过程）

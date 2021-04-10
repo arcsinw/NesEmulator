@@ -1,6 +1,7 @@
 package com.arcsinw.nesemulator;
 
 import com.arcsinw.nesemulator.ui.AboutDialog;
+import com.arcsinw.nesemulator.ui.NameTableFrame;
 import com.arcsinw.nesemulator.ui.PatternTableFrame;
 
 import java.awt.*;
@@ -101,8 +102,9 @@ public class Emulator extends Frame {
         Emulator emulator = new Emulator();
         emulator.setVisible(true);
 
-//        String romPath = "/nestest.nes";
-        String romPath = "/896.nes";
+        String romPath = "/nestest.nes";
+//        String romPath = "/Donkey Kong.nes";
+//        String romPath = "/896.nes";
         cartridge = new Cartridge(romPath);
         System.out.println(cartridge.header.toString());
 
@@ -115,12 +117,10 @@ public class Emulator extends Frame {
         int line = 0;
         cpu.reset();
 
-        while (line++ < 10000) {
+        while (line++ < 50000) {
             cpu.clock();
         }
 
-        ppu.getNameTable();
-        ppu.getPalette();
         emulator.displayPatternTable2(ppu.getPatternTable2());
     }
 
@@ -145,8 +145,8 @@ public class Emulator extends Frame {
 
     public void showNameTableFrame() {
         if (cartridge != null) {
-            PatternTableFrame patternTableFrame = new PatternTableFrame(ppu.getPatternTable());
-            patternTableFrame.displayPatternTable();
+            NameTableFrame patternTableFrame = new NameTableFrame(ppu);
+            patternTableFrame.displayNameTable();
         }
     }
 

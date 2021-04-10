@@ -10,6 +10,18 @@ import java.io.InputStream;
 public class Cartridge implements CPUBusDevice{
 
     private final String INVALID_NES_ROM_MESSAGE = "非法的nes文件";
+
+    public enum Mirror {
+        Horizontal(0),
+        Vertical(1);
+
+        private int key;
+
+        Mirror(int k) {
+            key = k;
+        }
+    }
+
     /**
      * 文件头，16字节
      */
@@ -37,7 +49,9 @@ public class Cartridge implements CPUBusDevice{
          * Mirroring: 0: horizontal (vertical arrangement) (CIRAM A10 = PPU A11)
          *            1: vertical (horizontal arrangement) (CIRAM A10 = PPU A10)
          */
-        boolean mirrorFlag;
+        Mirror mirror;
+
+
 
         public Header(byte[] bytes) {
             int length = bytes.length;
@@ -51,9 +65,9 @@ public class Cartridge implements CPUBusDevice{
             prgBanksCount = bytes[4] & 0xFF;
             chrBanksCount = bytes[5] & 0xFF;
 
-            mapperNo = (bytes[7] & 0xF0) | (bytes[6] >>> 4);
+            mapperNo = ((bytes[7] & 0xF0) | (bytes[6] >>> 4)) & 0x0FFF; // 确保是正数
 
-            mirrorFlag = (bytes[6] & 0x01) != 0;
+            mirror = (bytes[6] & 0x01) != 0 ? Mirror.Vertical : Mirror.Horizontal;
             trainerFlag = (bytes[6] & 0x04) != 0;
         }
 
@@ -64,7 +78,7 @@ public class Cartridge implements CPUBusDevice{
                     ", vromBanksCount=" + chrBanksCount +
                     ", mapperNo=" + mapperNo +
                     ", trainerFlag=" + trainerFlag +
-                    ", mirrorFlag=" + mirrorFlag +
+                    ", mirrorFlag=" + mirror.key +
                     " }";
         }
     }

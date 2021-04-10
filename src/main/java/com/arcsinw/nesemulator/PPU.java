@@ -21,7 +21,7 @@ public class PPU implements CPUBusDevice {
     /**
      * Name Table, 命名表 (VRAM, CIRAM)
      * 0x2000 ~ 0x3EFF
-     * 0x2000 - 0x2FFF Name Tables + Attribute Tables
+     * 0x2000 - 0x2FFF Name Tables + Attribute Tables  共 4KB 分为4块
      * 0x3000 - 0x3EFF Mirrors
      */
     private byte[][] nameTable = new byte[2][1024];
@@ -33,7 +33,7 @@ public class PPU implements CPUBusDevice {
      * 0x3F10 - 0x3F1F Sprite Palette
      * 0x3F20 - 0x3FFF Mirrors
      */
-    private byte[] palette = new byte[2 * 16];
+    private byte[] palette = new byte[32];
 
     // endregion
 
@@ -251,7 +251,7 @@ public class PPU implements CPUBusDevice {
     public void setCartridge(Cartridge cartridge) {
         this.cartridge = cartridge;
         System.arraycopy(this.cartridge.chr, 0, patternTable[0], 0, 4096);
-        System.arraycopy(this.cartridge.chr, 0, patternTable[1], 0, 4096);
+        System.arraycopy(this.cartridge.chr, 4096, patternTable[1], 0, 4096);
     }
 
     /**
@@ -329,6 +329,10 @@ public class PPU implements CPUBusDevice {
         return palette;
     }
 
+    public byte getColorFromPalette(int paletteId, int pixelId) {
+        return ppuRead(0x3F00 + (paletteId << 2) + pixelId);
+    }
+
     /**
      * CPU 与 PPU之间的通信通过 0x2000 - 0x2007的 8个 寄存器 来实现
      * @param address 写入地址 16bit
@@ -343,8 +347,7 @@ public class PPU implements CPUBusDevice {
             case 0x0001:
                 setPpuMaskValue(data);
                 break;
-            case 0x0002:
-                setPpuStatusValue(data);
+            case 0x0002: // Status (not writeable)
                 break;
             case 0x0003:
                 oamAddress = data;
@@ -370,7 +373,7 @@ public class PPU implements CPUBusDevice {
 
     private int tmpPpuAddress = 0x00;
     private boolean isFirstPpuAddress = true;
-    private byte ppuDataBuffer = 0x00;
+    private int ppuDataBuffer = 0x00;
 
     /**
      *
@@ -402,13 +405,12 @@ public class PPU implements CPUBusDevice {
                 break;
             case 0x0007: // PPU Data
                 // CPU 从 PPU读取数据 要慢一个 ppuRead
-                data = ppuDataBuffer;
-
+                data = (byte)ppuDataBuffer;
                 ppuDataBuffer = ppuRead(tmpPpuAddress);
 
                 // 读取Palettes没有延迟
                 if (tmpPpuAddress >= 0x3F00) {
-                    data = ppuDataBuffer;
+                    data = (byte)ppuDataBuffer;
                 }
 
                 tmpPpuAddress += (getPpuCtrl(PPUCtrl.IncrementMode) == 0 ? 1 : 32);
@@ -424,13 +426,13 @@ public class PPU implements CPUBusDevice {
         if (address >= 0x0000 && address <= 0x1FFF) {
             // Pattern table
 //            cartridge.ppuWrite(address, data);
-            patternTable[(address & 0x1000) >> 12][address & 0x0FFF] = data;
+            patternTable[(address & 0x1000) >>> 12][address & 0x0FFF] = data;
         }
         if (address >= 0x2000 && address <= 0x3EFF) {
             // Name Tables 实际地址 0x2000 - 0x2FFF 其余是Mirror
             // 最多有4个Name Table
             address &= 0x0FFF;
-            if (this.cartridge.header.mirrorFlag) // vertical mirror
+            if (this.cartridge.header.mirror == Cartridge.Mirror.Vertical) // vertical mirror
             {
                 // Vertical
                 if (address >= 0x0000 && address <= 0x03FF)
@@ -480,7 +482,7 @@ public class PPU implements CPUBusDevice {
             // Name Tables 实际地址 0x2000 - 0x2FFF 其余是Mirror
             // 最多有4个Name Table
             address &= 0x0FFF;
-            if (this.cartridge.header.mirrorFlag) // vertical mirror
+            if (this.cartridge.header.mirror == Cartridge.Mirror.Vertical) // vertical mirror
             {
                 // Vertical
                 if (address >= 0x0000 && address <= 0x03FF)
@@ -518,8 +520,43 @@ public class PPU implements CPUBusDevice {
         return data;
     }
 
-    public void clock() {
+    /**
+     * 扫描线编号
+     * -1 - 261
+     */
+    private int scanLine = 0;
 
+    /**
+     * 每根扫描线有 341 cycles
+     * 每个cycle 渲染一个像素
+     */
+    private int cycles = 0;
+
+    public boolean nmi = false;
+
+    public void clock() {
+        if (scanLine == -1 && cycles == 0) {
+            setPpuStatus(PPUStatus.VBlank, 0);
+        }
+
+        if (scanLine == 241 && cycles == 0) {
+            setPpuStatus(PPUStatus.VBlank, 1);
+
+            // 在VBlank时 触发CPU中断
+            if (getPpuCtrl(PPUCtrl.NmiEnable) == 1) {
+                nmi = true;
+            }
+        }
+
+        cycles++;
+        if (cycles >= 341) {
+            cycles = 0;
+            scanLine++;
+
+            if (scanLine >= 261) {
+                scanLine = -1;
+            }
+        }
     }
 
     public int getAddress() {
