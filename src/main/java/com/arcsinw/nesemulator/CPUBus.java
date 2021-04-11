@@ -24,6 +24,7 @@ public class CPUBus {
 
     /**
      * CPU RAM
+     * 0x0000 - 0x0800 2K
      */
     public byte[] cpuRAM = new byte[2 * 1024];
 

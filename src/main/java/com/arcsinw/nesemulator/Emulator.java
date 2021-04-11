@@ -70,10 +70,10 @@ public class Emulator extends Frame {
         setMenuBar(menuBar);
     }
 
-    private static Panel panel = new Panel() {
+    private Panel panel = new Panel() {
         @Override
         public void paint(Graphics g) {
-//            displayPatternTable();
+            displayPatternTable();
         }
     };
 
@@ -112,16 +112,14 @@ public class Emulator extends Frame {
         cpuBus.setPpu(ppu);
         cpuBus.setCartridge(cartridge);
 
-        //emulator.displayPatternTable(ppu.getPatternTable());
-
         int line = 0;
         cpu.reset();
 
-        while (line++ < 50000) {
+        while (line++ < 400000) {
             cpu.clock();
         }
 
-        emulator.displayPatternTable2(ppu.getPatternTable2());
+        emulator.displayPatternTable();
     }
 
     public static String get2DArrayPrint(byte[] matrix) {
@@ -138,7 +136,7 @@ public class Emulator extends Frame {
 
     public void showPatternTableFrame() {
         if (cartridge != null) {
-            PatternTableFrame patternTableFrame = new PatternTableFrame(ppu.getPatternTable());
+            PatternTableFrame patternTableFrame = new PatternTableFrame(ppu);
             patternTableFrame.displayPatternTable();
         }
     }
@@ -155,58 +153,10 @@ public class Emulator extends Frame {
             0x22, 0x16, 0x27, 0x18, 0x0F, 0x1A, 0x30, 0x27, 0x0F, 0x16, 0x30, 0x27, 0x0F, 0x0F, 0x36, 0x17  // Sprite Palette
     };
 
-    public void displayPatternTable(byte[][][] table) {
+    public void displayPatternTable() {
         BufferedImage image = new BufferedImage(16*8, 16*8, BufferedImage.TYPE_3BYTE_BGR);
 
-        byte[][] background = table[0];
-        byte[][] sprite = table[1];
-
-        int startRow = 0, startCol = 0;
-
-        for (int k = 0; k < 256; k++) {
-            for (int i = 0; i < 64; i++) {
-                // 这里只有颜色的后两位
-                switch (background[k][i]) {
-                    case 1:
-                        image.setRGB(startCol + i % 8, startRow + i / 8, Color.cyan.getRGB());
-                        break;
-                    case 2:
-                        image.setRGB(startCol + i % 8, startRow + i / 8, Color.orange.getRGB());
-                        break;
-                    case 3:
-                        image.setRGB(startCol + i % 8, startRow + i / 8, Color.green.getRGB());
-                        break;
-                }
-            }
-
-            if (k != 0 && ((k & 0x0F) == 0x0F)) {
-                startCol = 0;
-                startRow += 8;
-            } else {
-                startCol += 8;
-            }
-        }
-
-        Graphics graphics = this.panel.getGraphics();
-        graphics.drawImage(image,
-                0, 0,
-                PATTERN_TABLE_WIDTH * PATTERN_TABLE_RATIO,
-                PATTERN_TABLE_HEIGHT * PATTERN_TABLE_RATIO,
-                this.panel);
-
-//        Graphics graphics = this.getGraphics();
-//        int left = this.getInsets().left;
-//        int right = this.getInsets().right;
-//
-//        graphics.drawImage(bgImage, 150, 150, 256*16*2, 256*16*2,this);
-    }
-
-    /**
-     *
-     * @param table [2][256 * 16 = 4096] Pattern table每个图案16字节
-     */
-    public void displayPatternTable2(byte[][] table) {
-        BufferedImage image = new BufferedImage(16*8, 16*8, BufferedImage.TYPE_3BYTE_BGR);
+        byte[][] table = ppu.getPatternTable();
 
         /**
          * 2 Background 和 Sprite
@@ -274,16 +224,5 @@ public class Emulator extends Frame {
                 PATTERN_TABLE_WIDTH * PATTERN_TABLE_RATIO,
                 PATTERN_TABLE_HEIGHT * PATTERN_TABLE_RATIO,
                 this.panel);
-    }
-
-    /**
-     *
-     * @param nameTable [2][1024]
-     */
-    public void displayNameTable(byte[][] nameTable) {
-        byte[][] attributeTable = new byte[2][64];
-
-        attributeTable[0] = Arrays.copyOfRange(nameTable[0], 960,  1025);
-        attributeTable[1] = Arrays.copyOfRange(nameTable[1], 960,  1025);
     }
 }

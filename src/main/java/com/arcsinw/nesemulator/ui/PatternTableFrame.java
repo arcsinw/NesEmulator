@@ -2,6 +2,7 @@ package com.arcsinw.nesemulator.ui;
 
 
 import com.arcsinw.nesemulator.ColorPalette;
+import com.arcsinw.nesemulator.PPU;
 
 import java.awt.*;
 import java.awt.event.WindowAdapter;
@@ -18,7 +19,7 @@ public class PatternTableFrame extends Frame {
     private static final int PATTERN_TABLE_HEIGHT = 128;
     private static final int PATTERN_TABLE_RATIO = 3;
 
-    private byte[][][] table;
+    private PPU ppu;
 
     private Panel panel = new Panel() {
         @Override
@@ -27,8 +28,8 @@ public class PatternTableFrame extends Frame {
         }
     };
 
-    public PatternTableFrame(byte[][][] table) {
-        this.table = table;
+    public PatternTableFrame(PPU ppu) {
+        this.ppu = ppu;
 
         setTitle("Pattern Table");
         setBackground(Color.black);
@@ -52,27 +53,47 @@ public class PatternTableFrame extends Frame {
         return new Color(c[0], c[1], c[2]);
     }
 
+    /**
+     *
+     * @return [2][256][64]
+     */
+    public byte[][][] getColorMap() {
+        /**
+         * [2][4096]
+         */
+        byte[][] patternTable = ppu.getPatternTable();
+        byte[][][] result = new byte[2][256][64];
+
+        for (int i = 0; i < 2; i++) {
+            for (int j = 0; j < 256; j++) { // 每个tile使用Pattern Table的16字节
+
+                for (int k = 0; k < 64; k++) { // 像素
+                    byte low0 = patternTable[i][j * 16 + k / 8];
+                    byte low1 = patternTable[i][j * 16 + k / 8 + 8];
+
+                    int offset = k % 8;
+
+                    byte l = (byte)((low0 >> (7 - offset)) & 1);
+                    byte h = (byte)(((low1 >> (7 - offset)) & 1) << 1);
+                    result[i][j][k] = (byte) (l | h);
+                }
+            }
+        }
+
+        return result;
+    }
+
     public void displayPatternTable() {
         BufferedImage image = new BufferedImage(16*8, 16*8, BufferedImage.TYPE_3BYTE_BGR);
+
+        byte[][][] colorMap = getColorMap();
+        byte[] palette = ppu.getPalette();
 
         for (int p = 0; p < 2; p++) {
             int startRow = 0, startCol = 0;
             for (int k = 0; k < 256; k++) {
                 for (int i = 0; i < 64; i++) {
-                    switch (table[p][k][i]) {
-                        case 0:
-                            image.setRGB(startCol + i % 8, startRow + i / 8, fromRGB(ColorPalette.COLOR_PALETTE[0x22]).getRGB());
-                            break;
-                        case 1:
-                            image.setRGB(startCol + i % 8, startRow + i / 8, Color.white.getRGB());
-                            break;
-                        case 2:
-                            image.setRGB(startCol + i % 8, startRow + i / 8, Color.orange.getRGB());
-                            break;
-                        case 3:
-                            image.setRGB(startCol + i % 8, startRow + i / 8, Color.green.getRGB());
-                            break;
-                    }
+                    image.setRGB(startCol + i % 8, startRow + i / 8, fromRGB(ColorPalette.COLOR_PALETTE[palette[colorMap[p][k][i]]]).getRGB());
                 }
 
                 if (k != 0 && ((k & 0x0F) == 0x0F)) {

@@ -22,14 +22,7 @@ public class NameTableFrame extends Frame {
 
     private Panel panel = new Panel() {
         @Override
-        public void repaint() {
-            System.out.println("repaint");
-            displayNameTable();
-        }
-
-        @Override
         public void paint(Graphics g) {
-            System.out.println("paint");
             displayNameTable();
         }
     };
@@ -94,7 +87,7 @@ public class NameTableFrame extends Frame {
          * [2][256 * 16]
          * 每个图案占 16 字节（前8字节 bit 0，后8字节 bit 1）
          */
-        byte[][] patternTable = ppu.getPatternTable2();
+        byte[][] patternTable = ppu.getPatternTable();
 
         /**
          * [2][960 * 16]

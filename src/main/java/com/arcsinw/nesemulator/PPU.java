@@ -11,7 +11,7 @@ public class PPU implements CPUBusDevice {
     // region 内存
 
     /**
-     * Pattern Table, 图案表
+     * Pattern Table, 图案表 [2][4096]
      * 0x0000 ~ 0x1FFF
      * 0x0000 - 0x0FFF Pattern Table 0
      * 0x1000 - 0x1FFF Pattern Table 1
@@ -254,64 +254,14 @@ public class PPU implements CPUBusDevice {
         System.arraycopy(this.cartridge.chr, 4096, patternTable[1], 0, 4096);
     }
 
+
     /**
      * 获取图案表
      * 每个图案8x8个像素，使用16字节
      * 图案表分为 背景图案表 和 精灵图案表，各256个图案
-     * @return
+     * @return [2][4096]
      */
-    public byte[][][] getPatternTable() {
-        byte[] data = cartridge.chr;
-        byte[][][] result = new byte[2][256][64];
-        int len = data.length;
-
-        int index = 0;
-        int start = 0;
-
-        while (start < len - 1 && index < 256) {
-            // 读8个字节作为图案的 0位
-            // 读8个字节作为图案的 1位
-            for (int i = 0; i < 8; i++) {
-                byte low0 = data[start + i];
-                byte low1 = data[start + i + 8];
-
-                // 处理字节的每一位
-                for (int j = 0; j < 8; j++) {
-                    byte l = (byte)((low0 >> (7 - j)) & 1);
-                    byte h = (byte)(((low1 >> (7 - j)) & 1) << 1);
-                    result[0][index][i*8+j] = (byte)(l | h);
-                }
-            }
-
-            index++;
-            start += 16;
-        }
-
-        index = 0;
-
-        while (start < len - 1 && index < 256) {
-            // 读8个字节作为图案的 0位
-            // 读8个字节作为图案的 1位
-            for (int i = 0; i < 8; i++) {
-                byte low0 = data[start + i];
-                byte low1 = data[start + i + 8];
-
-                // 处理字节的每一位
-                for (int j = 0; j < 8; j++) {
-                    byte l = (byte)((low0 >> (7 - j)) & 1);
-                    byte h = (byte)(((low1 >> (7 - j)) & 1) << 1);
-                    result[1][index][i*8+j] = (byte)(l | h);
-                }
-            }
-
-            index++;
-            start += 16;
-        }
-
-        return result;
-    }
-
-    public byte[][] getPatternTable2() {
+    public byte[][] getPatternTable() {
         return this.patternTable;
     }
 
@@ -367,6 +317,9 @@ public class PPU implements CPUBusDevice {
             case 0x0007: // PPU Data
                 ppuWrite(tmpPpuAddress, data);
                 tmpPpuAddress += (getPpuCtrl(PPUCtrl.IncrementMode) == 0 ? 1 : 32);
+
+                // 改变PPUSTATUS的后5位
+                ppuStatus = (byte) ((ppuStatus & 0xE0) | (data & 0x1F));
                 break;
         }
     }

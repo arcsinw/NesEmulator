@@ -28,7 +28,7 @@ public class CPU {
     // region debug only
 
     int clockCount = 0;
-    boolean logging = false;
+    boolean logging = true;
 
     // endregion
 
@@ -104,6 +104,7 @@ public class CPU {
      * 指令的周期
      */
     public static final int[] INSTRUCTION_CYCLE = {
+         // 0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F
             7, 6, 2, 8, 3, 3, 5, 5, 3, 2, 2, 2, 4, 4, 6, 6,
             2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
             6, 6, 2, 8, 3, 3, 5, 5, 4, 2, 2, 2, 4, 4, 6, 6,
@@ -1379,8 +1380,8 @@ public class CPU {
 
         P = 0x00;
 
-        setFlag(StatusFlag.U, 1);
-//        setFlag(StatusFlag.I, 1); // 测试用
+//        setFlag(StatusFlag.U, 1);
+        setFlag(StatusFlag.I, 1); // 测试用
 
         absoluteAddress = 0xFFFC;
         PC = read16(absoluteAddress); // 实际上是0x8000
