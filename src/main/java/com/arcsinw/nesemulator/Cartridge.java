@@ -7,7 +7,7 @@ import java.io.InputStream;
  * 卡带
  * http://fms.komkon.org/EMUL8/NES.html
  */
-public class Cartridge implements CPUBusDevice{
+public class Cartridge {
 
     private final String INVALID_NES_ROM_MESSAGE = "非法的nes文件";
 
@@ -109,19 +109,17 @@ public class Cartridge implements CPUBusDevice{
         }
     }
 
-    @Override
     public void cpuWrite(int address, byte data) {
         if (address >= 0x8000 && address <= 0xFFFF) {
-            prg[address & (header.prgBanksCount == 1 ? 0x3FFF : 0x7FFF)] = data;
+            prg[address & (header.prgBanksCount > 1 ? 0x7FFF : 0x3FFF )] = data;
         }
     }
 
     /**
-     * CPU 读写 的是 RPG部分
+     * CPU 读写 的是 PRG部分
      * @param address 数据地址
      * @return
      */
-    @Override
     public byte cpuRead(int address) {
         // if PRGROM is 16KB
         //     CPU Address Bus          PRG ROM
@@ -131,7 +129,7 @@ public class Cartridge implements CPUBusDevice{
         //     CPU Address Bus          PRG ROM
         //     0x8000 -> 0xFFFF: Map    0x0000 -> 0x7FFF
         if (address >= 0x8000 && address <= 0xFFFF) {
-            return prg[address & (header.prgBanksCount == 1 ? 0x3FFF : 0x7FFF)];
+            return prg[address & (header.prgBanksCount > 1 ? 0x7FFF : 0x3FFF)];
         }
 
         return 0x00;

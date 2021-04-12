@@ -23,12 +23,9 @@ public class CPU {
      */
     private Cartridge cartridge;
 
-    // endregion
-
-    // region debug only
-
+    // debug only
     int clockCount = 0;
-    boolean logging = true;
+    boolean logging = false;
 
     // endregion
 
@@ -50,7 +47,7 @@ public class CPU {
         bus.write(address, data);
     }
 
-    final int STACK_BASE_ADDRESS = 0x0100;
+    private final int STACK_BASE_ADDRESS = 0x0100;
 
     // region 6502 Instruction set
     // https://pastraiser.com/cpu/6502/6502_opcodes.html
@@ -1383,8 +1380,7 @@ public class CPU {
 //        setFlag(StatusFlag.U, 1);
         setFlag(StatusFlag.I, 1); // 测试用
 
-        absoluteAddress = 0xFFFC;
-        PC = read16(absoluteAddress); // 实际上是0x8000
+        PC = read16(0xFFFC);
 //        PC = 0xC000; // 调试nestest.nes
 
         absoluteAddress = 0x0000;
@@ -2444,21 +2440,22 @@ public class CPU {
             int operationLength = INSTRUCTION_LENGTH[operationCode & 0xFF];
 
             StringBuilder operationCodeString = new StringBuilder(String.format("%02X", operationCode));
-            String parameters = "";
+            StringBuilder parameters = new StringBuilder();
             if (INSTRUCTION_ADDRESSING_MODE[operationCode & 0xFF] == AddressingMode.Accumulator.key) {
-                parameters += "A";
+                parameters.insert(0, "A");
             } else {
                 for (int i = 1; i < operationLength; i++) {
-                    parameters = String.format("%02X", read(tmpPC + i)) + parameters;
+                    parameters.insert(0, String.format("%02X", read(tmpPC + i)));
                     operationCodeString.append(" " + String.format("%02X", read(tmpPC + i)));
                 }
 
-                if (!parameters.isEmpty()) {
-                    parameters = "$" + parameters;
+                if (operationLength != 1) {
+                    parameters.insert(0,  "$");
+                    parameters.append(String.format(" = %02X", fetched));
                 }
 
                 if (instruction.addressingMode == AddressingMode.Immediate) {
-                    parameters = "#" + parameters;
+                    parameters.insert(0, "#");
                 }
             }
 
@@ -2466,7 +2463,7 @@ public class CPU {
 //                    tmpPC, operationCodeString.toString(), operation, parameters, A, X, Y, P, (byte)S, bus.ppu.getAddress(), cycles));
 
             System.out.println(String.format("%04X  %-8s  %s %-26s  A:%02X X:%02X Y:%02X P:%02X SP:%02X",
-                    tmpPC, operationCodeString.toString(), operationName, parameters, A, X, Y, P, (byte)S));
+                    tmpPC, operationCodeString.toString(), operationName, parameters.toString(), A, X, Y, P, (byte)S));
         }
 
         // 执行指令（包含了寻址过程）

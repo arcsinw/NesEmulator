@@ -6,7 +6,7 @@ package com.arcsinw.nesemulator;
  * 0x0000 ~ 0x3FFF
  * 0x4000 - 0xFFFF Mirrors
  */
-public class PPU implements CPUBusDevice {
+public class PPU {
 
     // region 内存
 
@@ -244,6 +244,19 @@ public class PPU implements CPUBusDevice {
     // endregion
 
     /**
+     * 为方便实现 卷轴滚动 虚拟的寄存器
+     */
+    private class LoopyRegister {
+        byte coarseX = 0;
+        byte coarseY = 0;
+        byte nameTableX = 0;
+        byte nameTableY = 0;
+        byte fineY = 0;
+    }
+
+    private LoopyRegister loopyRegister = new LoopyRegister();
+
+    /**
      * 卡带
      */
     private Cartridge cartridge;
@@ -288,7 +301,6 @@ public class PPU implements CPUBusDevice {
      * @param address 写入地址 16bit
      * @param data 要写入的数据 8bit
      */
-    @Override
     public void cpuWrite(int address, byte data) {
         switch (address) {
             case 0x0000:
@@ -307,10 +319,10 @@ public class PPU implements CPUBusDevice {
                 // PPU的地址为16位，PPU Data寄存器是8位，需要进行两次写入才能设置地址
                 // 先写入高地址 再写入低地址
                 if (isFirstPpuAddress) {
-                    tmpPpuAddress = (tmpPpuAddress & 0x00FF) | (data << 8);
+                    tmpPpuAddress = (tmpPpuAddress & 0x00FF) | ((data << 8) & 0x0FFF);
                     isFirstPpuAddress = false;
                 } else {
-                    tmpPpuAddress = (tmpPpuAddress & 0xFF00) | data;
+                    tmpPpuAddress = (tmpPpuAddress & 0xFF00) | (data & 0x00FF);
                     isFirstPpuAddress = true;
                 }
                 break;
@@ -334,42 +346,65 @@ public class PPU implements CPUBusDevice {
      * @param address 数据地址
      * @return
      */
-    @Override
-    public byte cpuRead(int address) {
+    public byte cpuRead(int address, boolean readOnly) {
         byte data = 0x00;
 
-        switch (address) {
-            case 0x0000:
-                break;
-            case 0x0001:
-                break;
-            case 0x0002:
-                // 暂时写死 使程序能往下运行
-                setPpuStatus(PPUStatus.VBlank, 1);
-
-                // ppu status 只有前三位有效
-                data = (byte)((ppuStatus & 0xE0) | (ppuDataBuffer & 0x1F));
-                setPpuStatus(PPUStatus.VBlank, 0);
-                isFirstPpuAddress = true;
-                break;
-            case 0x0003:
-                break;
-            case 0x0006: // PPU Address
-                break;
-            case 0x0007: // PPU Data
-                // CPU 从 PPU读取数据 要慢一个 ppuRead
-                data = (byte)ppuDataBuffer;
-                ppuDataBuffer = ppuRead(tmpPpuAddress);
-
-                // 读取Palettes没有延迟
-                if (tmpPpuAddress >= 0x3F00) {
-                    data = (byte)ppuDataBuffer;
-                }
-
-                tmpPpuAddress += (getPpuCtrl(PPUCtrl.IncrementMode) == 0 ? 1 : 32);
-                break;
+        if (readOnly)
+        {
+            // Reading from PPU registers can affect their contents
+            // so this read only option is used for examining the
+            // state of the PPU without changing its state. This is
+            // really only used in debug mode.
+            switch (address)
+            {
+                case 0x0000:    // PPUCtrl
+                    data = ppuCtrl;
+                    break;
+                case 0x0001:    // PPUMask
+                    data = ppuMask;
+                    break;
+                case 0x0002:    // PPU Status
+                    // ppu status 只有前三位有效
+                    data = ppuStatus;
+                    break;
+                case 0x0003:    // OAM Address
+                    break;
+                case 0x0006:    // PPU Address
+                    break;
+                case 0x0007:    // PPU Data
+                    break;
+            }
         }
+        else {
+            switch (address) {
+                case 0x0000:
+                    break;
+                case 0x0001:
+                    break;
+                case 0x0002:
+                    // ppu status 只有前三位有效
+                    data = (byte) ((ppuStatus & 0xE0) | (ppuDataBuffer & 0x1F));
+                    setPpuStatus(PPUStatus.VBlank, 0);
+                    isFirstPpuAddress = true;
+                    break;
+                case 0x0003:
+                    break;
+                case 0x0006:    // PPU Address
+                    break;
+                case 0x0007:    // PPU Data
+                    // CPU 从 PPU读取数据 要慢一个 ppuRead
+                    data = (byte) ppuDataBuffer;
+                    ppuDataBuffer = ppuRead(tmpPpuAddress);
 
+                    // 读取Palettes没有延迟
+                    if (tmpPpuAddress >= 0x3F00) {
+                        data = (byte) ppuDataBuffer;
+                    }
+
+                    tmpPpuAddress += (getPpuCtrl(PPUCtrl.IncrementMode) == 0 ? 1 : 32);
+                    break;
+            }
+        }
         return data;
     }
 
@@ -423,7 +458,6 @@ public class PPU implements CPUBusDevice {
 
     public byte ppuRead(int address) {
         address &= 0x3FFF;
-
         byte data = 0x00;
 
         if (address >= 0x0000 && address <= 0x1FFF) {
@@ -435,9 +469,8 @@ public class PPU implements CPUBusDevice {
             // Name Tables 实际地址 0x2000 - 0x2FFF 其余是Mirror
             // 最多有4个Name Table
             address &= 0x0FFF;
-            if (this.cartridge.header.mirror == Cartridge.Mirror.Vertical) // vertical mirror
-            {
-                // Vertical
+            if (cartridge.header.mirror == Cartridge.Mirror.Vertical) {
+                // Vertical mirror
                 if (address >= 0x0000 && address <= 0x03FF)
                     data = nameTable[0][address & 0x03FF];
                 if (address >= 0x0400 && address <= 0x07FF)
@@ -447,9 +480,8 @@ public class PPU implements CPUBusDevice {
                 if (address >= 0x0C00 && address <= 0x0FFF)
                     data = nameTable[1][address & 0x03FF];
             }
-            else // horizontal mirror
-            {
-                // Horizontal
+            else if (cartridge.header.mirror == Cartridge.Mirror.Horizontal) {
+                // Horizontal mirror
                 if (address >= 0x0000 && address <= 0x03FF)
                     data = nameTable[0][address & 0x03FF];
                 if (address >= 0x0400 && address <= 0x07FF)
@@ -467,7 +499,7 @@ public class PPU implements CPUBusDevice {
             if (address == 0x0014) address = 0x0004;
             if (address == 0x0018) address = 0x0008;
             if (address == 0x001C) address = 0x000C;
-            data = palette[address];
+            data = (byte)(palette[address] & (getPpuMask(PPUMask.GreyScale) == 1 ? 0x30 : 0x3F));
         }
 
         return data;
@@ -510,6 +542,18 @@ public class PPU implements CPUBusDevice {
                 scanLine = -1;
             }
         }
+    }
+
+    public void reset() {
+        tmpPpuAddress = 0x00;
+        isFirstPpuAddress = true;
+        ppuDataBuffer = 0x00;
+        scanLine = 0;
+        cycles = 0;
+
+        ppuStatus = 0;
+        ppuCtrl = 0;
+        ppuMask = 0;
     }
 
     public int getAddress() {

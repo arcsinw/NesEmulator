@@ -26,14 +26,19 @@ public class CPUBus {
      * CPU RAM
      * 0x0000 - 0x0800 2K
      */
-    public byte[] cpuRAM = new byte[2 * 1024];
+    public byte[] cpuRAM = new byte[2048];
 
     /**
      * 两个控制器
+     * 8位 每位代表一个按键的状态（1 按下）A B Select Start Up Down Left Right
      */
     public byte[] controller = new byte[2];
 
+    private byte[] controllerState = new byte[2];
+
     // endregion
+
+    private long cycles = 0;
 
     public CPUBus() {
 
@@ -52,10 +57,34 @@ public class CPUBus {
             // 0x2000 - 0x2007 是PPU的8个寄存器，其余是mirror
             ppu.cpuWrite(address & 0x0007, data);
         } else if (address >= 0x4016 && address <= 0x4017) {
-//            controller[address & 0x0001] = data;
+            // 两个手柄
+            controllerState[address & 0x0001] = controller[address & 0x0001];
         } else if (address >= 0x8000 && address <= 0xFFFF) {
             cartridge.cpuWrite(address, data);
         }
+    }
+
+    /**
+     * 从总线读取数据
+     * @param address 数据地址
+     * @return 8bit 数据
+     */
+    public byte read(int address, boolean readOnly) {
+        byte data = 0x00;
+        if (address >= 0x0000 && address <= 0x1FFF) {
+            data = cpuRAM[address & 0x07FF];
+        } else if (address >= 0x2000 && address <= 0x3FFF) {
+            // 0x2000 - 0x2007 是PPU的寄存器，其余是mirror
+            data = ppu.cpuRead(address & 0x0007, readOnly);
+        } else if (address >= 0x4016 && address <= 0x4017) {
+            // 手柄
+            data = (byte) ((controllerState[address & 0x0001] & 0x80) > 0 ? 1 : 0);
+            controllerState[address & 0x0001] <<= 1;
+        } else if (address >= 0x8000 && address <= 0xFFFF) {
+            data = cartridge.cpuRead(address);
+        }
+
+        return data;
     }
 
     /**
@@ -69,9 +98,11 @@ public class CPUBus {
             data = cpuRAM[address & 0x07FF];
         } else if (address >= 0x2000 && address <= 0x3FFF) {
             // 0x2000 - 0x2007 是PPU的寄存器，其余是mirror
-            data = ppu.cpuRead(address & 0x0007);
+            data = ppu.cpuRead(address & 0x0007, false);
         } else if (address >= 0x4016 && address <= 0x4017) {
-
+            // 手柄
+            data = (byte) ((controllerState[address & 0x0001] & 0x80) > 0 ? 1 : 0);
+            controllerState[address & 0x0001] <<= 1;
         } else if (address >= 0x8000 && address <= 0xFFFF) {
             data = cartridge.cpuRead(address);
         }
@@ -87,8 +118,11 @@ public class CPUBus {
     public void setPpu(PPU ppu) {
         this.ppu = ppu;
     }
+    public void setCpu(CPU cpu) {
+        this.cpu = cpu;
+        cpu.setBus(this);
+    }
 
-    private long cycles;
 
     public void clock() {
         ppu.clock();
@@ -104,5 +138,11 @@ public class CPUBus {
         }
 
         cycles++;
+    }
+
+    public void reset() {
+        cpu.reset();
+        ppu.reset();
+        cycles = 0;
     }
 }
