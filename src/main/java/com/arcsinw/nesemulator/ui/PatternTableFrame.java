@@ -4,6 +4,7 @@ package com.arcsinw.nesemulator.ui;
 import com.arcsinw.nesemulator.ColorPalette;
 import com.arcsinw.nesemulator.PPU;
 
+import javax.swing.*;
 import java.awt.*;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
@@ -21,7 +22,7 @@ public class PatternTableFrame extends Frame {
 
     private PPU ppu;
 
-    private Panel panel = new Panel() {
+    private Panel patternTablePanel = new Panel() {
         @Override
         public void paint(Graphics g) {
             displayPatternTable();
@@ -33,9 +34,11 @@ public class PatternTableFrame extends Frame {
 
         setTitle("Pattern Table");
         setBackground(Color.black);
+//        setLayout(new BoxLayout(getContentPane(), BoxLayout.Y_AXIS));
 
-        panel.setPreferredSize(new Dimension(SCREEN_WIDTH * SCREEN_RATIO, SCREEN_HEIGHT * SCREEN_RATIO));
-        add(panel);
+        patternTablePanel.setPreferredSize(new Dimension(SCREEN_WIDTH * SCREEN_RATIO, SCREEN_HEIGHT * SCREEN_RATIO));
+//        patternTablePanel.setBorder(BorderFactory.createTitledBorder("Pattern table"));
+        add(patternTablePanel);
         pack();
 
         this.addWindowListener(new WindowAdapter(){
@@ -89,10 +92,10 @@ public class PatternTableFrame extends Frame {
         byte[][][] colorMap = getColorMap();
         byte[] palette = ppu.getPalette();
 
-        palette = new byte[] {
-            0x22, 0x29, 0x1A, 0x0F, 0x0F, 0x36, 0x17, 0x0F, 0x0F, 0x30, 0x21, 0x0F, 0x0F, 0x17, 0x17, 0x0F,
-            0x22, 0x16, 0x27, 0x18, 0x0F, 0x1A, 0x30, 0x27, 0x0F, 0x16, 0x30, 0x27, 0x0F, 0x0F, 0x36, 0x17
-        };
+//        palette = new byte[] {
+//            0x22, 0x29, 0x1A, 0x0F, 0x0F, 0x36, 0x17, 0x0F, 0x0F, 0x30, 0x21, 0x0F, 0x0F, 0x17, 0x17, 0x0F,
+//            0x22, 0x16, 0x27, 0x18, 0x0F, 0x1A, 0x30, 0x27, 0x0F, 0x16, 0x30, 0x27, 0x0F, 0x0F, 0x36, 0x17
+//        };
 
         for (int p = 0; p < 2; p++) {
             int startRow = 0, startCol = 0;
@@ -109,21 +112,12 @@ public class PatternTableFrame extends Frame {
                 }
             }
 
-            Graphics graphics = this.panel.getGraphics();
+            Graphics graphics = this.patternTablePanel.getGraphics();
             graphics.drawImage(image,
                      PATTERN_TABLE_WIDTH * PATTERN_TABLE_RATIO * p, 0,
                     PATTERN_TABLE_WIDTH * PATTERN_TABLE_RATIO,
                     PATTERN_TABLE_HEIGHT * PATTERN_TABLE_RATIO,
-                    this.panel);
+                    this.patternTablePanel);
         }
     }
-
-//    @Override
-//    public void paint(Graphics g) {
-//        displayPatternTable();
-//        panel.paint(g);
-//        int h = this.getHeight();
-//        int w = this.getWidth();
-//    }
-
 }

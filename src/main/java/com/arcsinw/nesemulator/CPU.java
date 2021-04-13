@@ -164,8 +164,8 @@ public class CPU {
     };
 
     public enum AddressingMode {
-        Implied(0),  // 隐含寻址，无需明确指出操作地址，如CLC，RTS
-        Accumulator(1),
+        Implied(0),         // 隐含寻址，无需明确指出操作地址，如CLC，RTS
+        Accumulator(1),     // 累加器寻址
         Immediate(2),
         ZeroPage(3),
         ZeroPageX(4),
@@ -239,7 +239,7 @@ public class CPU {
         ASL_Accumulator("ASL", 1, 2, 0x0A, AddressingMode.Accumulator) {
             @Override
             public void operation(CPU cpu) {
-                cpu.IMP();
+                cpu.ACM();
                 cpu.ASL();
             }
         },
@@ -365,7 +365,7 @@ public class CPU {
         ROL_Accumulator("ROL", 1, 2, 0x2A, AddressingMode.Accumulator) {
             @Override
             public void operation(CPU cpu) {
-                cpu.IMP();
+                cpu.ACM();
                 cpu.ROL();
             }
         },
@@ -491,7 +491,7 @@ public class CPU {
         LSR_Accumulator("LSR", 1, 2, 0x4A, AddressingMode.Accumulator) {
             @Override
             public void operation(CPU cpu) {
-                cpu.IMP();
+                cpu.ACM();
                 cpu.LSR();
             }
         },
@@ -617,7 +617,7 @@ public class CPU {
         ROR_Accumulator("ROR", 1, 2, 0x6A, AddressingMode.Accumulator) {
             @Override
             public void operation(CPU cpu) {
-                cpu.IMP();
+                cpu.ACM();
                 cpu.ROR();
             }
         },
@@ -1250,7 +1250,8 @@ public class CPU {
                 cpu.ABX();
                 cpu.INC();
             }
-        };
+        },
+        ;
 
         private String name;
         private int length;
@@ -1447,9 +1448,18 @@ public class CPU {
 
     /**
      * 隐含寻址 Implied Addressing 单字节指令
-     * 目前作为 寄存器寻址 Accumulator Addressing 使用
+     * 指令隐含了操作地址
      */
     public byte IMP() {
+        return 0;
+    }
+
+    /**
+     * 寄存器寻址 Accumulator Addressing
+     * 操作对象为 累加器A
+     * @return
+     */
+    public byte ACM() {
         fetched = (A & 0x00FF);
         return 0;
     }
@@ -2418,7 +2428,8 @@ public class CPU {
     }
 
     int fetch() {
-        if (INSTRUCTION_ADDRESSING_MODE[operationCode] != AddressingMode.Implied.key) {
+        if (INSTRUCTION_ADDRESSING_MODE[operationCode] != AddressingMode.Implied.key &&
+                INSTRUCTION_ADDRESSING_MODE[operationCode] != AddressingMode.Accumulator.key) {
             fetched = read(absoluteAddress);
         }
 

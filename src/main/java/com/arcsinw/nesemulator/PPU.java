@@ -243,6 +243,8 @@ public class PPU {
 
     // endregion
 
+    private boolean logging = false;
+
     /**
      * 为方便实现 卷轴滚动 虚拟的寄存器
      */
@@ -319,22 +321,35 @@ public class PPU {
                 // PPU的地址为16位，PPU Data寄存器是8位，需要进行两次写入才能设置地址
                 // 先写入高地址 再写入低地址
                 if (isFirstPpuAddress) {
-                    tmpPpuAddress = (tmpPpuAddress & 0x00FF) | ((data << 8) & 0x0FFF);
+                    if (logging) {
+                        tmp.append(String.format(" %02X ", data));
+                    }
+                    tmpPpuAddress = (tmpPpuAddress & 0x00FF) | ((data << 8) & 0x0FFFF);
                     isFirstPpuAddress = false;
                 } else {
+                    if (logging) {
+                        tmp.append(String.format(" %02X ", data));
+                    }
                     tmpPpuAddress = (tmpPpuAddress & 0xFF00) | (data & 0x00FF);
                     isFirstPpuAddress = true;
                 }
                 break;
             case 0x0007: // PPU Data
                 ppuWrite(tmpPpuAddress, data);
-                tmpPpuAddress += (getPpuCtrl(PPUCtrl.IncrementMode) == 0 ? 1 : 32);
 
-                // 改变PPUSTATUS的后5位
-                ppuStatus = (byte) ((ppuStatus & 0xE0) | (data & 0x1F));
+                if (logging) {
+                    System.out.println(String.format("%S %04X %X", tmp.toString(), tmpPpuAddress, data));
+                    tmp.delete(0, tmp.length());
+                }
+                tmpPpuAddress += (getPpuCtrl(PPUCtrl.IncrementMode) == 0 ? 1 : 32);
                 break;
         }
+
+        // 改变PPUSTATUS的后5位
+        ppuStatus = (byte) ((ppuStatus & 0xE0) | (data & 0x1F));
     }
+
+    StringBuilder tmp = new StringBuilder();
 
     private int tmpPpuAddress = 0x00;
     private boolean isFirstPpuAddress = true;
@@ -383,7 +398,8 @@ public class PPU {
                     break;
                 case 0x0002:
                     // ppu status 只有前三位有效
-                    data = (byte) ((ppuStatus & 0xE0) | (ppuDataBuffer & 0x1F));
+//                    data = (byte) ((ppuStatus & 0xE0) | (ppuDataBuffer & 0x1F));
+                    data = ppuStatus;
                     setPpuStatus(PPUStatus.VBlank, 0);
                     isFirstPpuAddress = true;
                     break;
@@ -417,7 +433,7 @@ public class PPU {
             patternTable[(address & 0x1000) >>> 12][address & 0x0FFF] = data;
         }
         if (address >= 0x2000 && address <= 0x3EFF) {
-            // Name Tables 实际地址 0x2000 - 0x2FFF 其余是Mirror
+            // Name Tables 实际地址 0x2000 - 0x2FFF 其余是Mirror（只Mirror了0x2000 - 0x2EFF）
             // 最多有4个Name Table
             address &= 0x0FFF;
             if (this.cartridge.header.mirror == Cartridge.Mirror.Vertical) // vertical mirror
@@ -462,8 +478,8 @@ public class PPU {
 
         if (address >= 0x0000 && address <= 0x1FFF) {
             // Pattern table
-            data = cartridge.ppuRead(address);
-//            data = patternTable[(address & 0x1000) >> 12][address & 0x0FFF];
+//            data = cartridge.ppuRead(address);
+            data = patternTable[(address & 0x1000) >> 12][address & 0x0FFF];
         }
         if (address >= 0x2000 && address <= 0x3EFF) {
             // Name Tables 实际地址 0x2000 - 0x2FFF 其余是Mirror

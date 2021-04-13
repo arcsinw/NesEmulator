@@ -26,7 +26,7 @@ public class InstructionEnumGenerator {
     private static HashMap<String, String> addressingMode2FunctionMap = new HashMap() {
         {
             put("Implied", "IMP");
-            put("Accumulator", "IMP");
+            put("Accumulator", "ACM");
             put("Immediate", "IMM");
             put("ZeroPage", "ZP0");
             put("ZeroPageX", "ZPX");

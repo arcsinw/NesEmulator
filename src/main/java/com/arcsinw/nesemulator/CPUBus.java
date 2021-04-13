@@ -55,6 +55,7 @@ public class CPUBus {
             cpuRAM[address & 0x07FF] = data;
         } else if (address >= 0x2000 && address <= 0x3FFF) {
             // 0x2000 - 0x2007 是PPU的8个寄存器，其余是mirror
+            // CPU通过寄存器读写PPU
             ppu.cpuWrite(address & 0x0007, data);
         } else if (address >= 0x4016 && address <= 0x4017) {
             // 两个手柄
@@ -104,6 +105,7 @@ public class CPUBus {
             data = (byte) ((controllerState[address & 0x0001] & 0x80) > 0 ? 1 : 0);
             controllerState[address & 0x0001] <<= 1;
         } else if (address >= 0x8000 && address <= 0xFFFF) {
+            // PRG ROM
             data = cartridge.cpuRead(address);
         }
 
