@@ -25,7 +25,7 @@ public class CPU {
 
     // debug only
     int clockCount = 0;
-    boolean logging = false;
+    boolean logging = true;
 
     // endregion
 
@@ -193,6 +193,7 @@ public class CPU {
         }
     }
 
+    // TODO 使用两个Switch代替枚举
     private enum Instruction {
         BRK_Implied("BRK", 1, 7, 0x00, AddressingMode.Implied) {
             @Override
@@ -1274,7 +1275,7 @@ public class CPU {
         private final static Instruction[] values = Instruction.values();
 
         public static Instruction fromCode(int code) {
-            Optional<Instruction> instruction = Arrays.stream(values).filter(x -> x.operationCode == code).findFirst();
+            Optional<Instruction> instruction = Arrays.stream(values).filter(x -> x.operationCode == code).parallel().findFirst();
             return instruction.isPresent() ? instruction.get() : NOP_Implied;
         }
     }
@@ -1388,7 +1389,7 @@ public class CPU {
         relativeAddress = 0x00;
         fetched = 0x00;
 
-        cycles += 8;
+        cycles += 7;
     }
 
     /**
@@ -1641,7 +1642,7 @@ public class CPU {
         setFlag(StatusFlag.N, (tmp & 0x80) == 0 ? 0 : 1);
         // A + M + C = R
         // FLAG_V = (~(A ^ M)) & (A ^ R) & 0x80 只看符号位
-        setFlag(StatusFlag.V, ((~(A ^ fetched) & (A ^ tmp)) & 0x0080) == 0 ? 0: 1);
+        setFlag(StatusFlag.V, ((~(A ^ (fetched & 0x00FF)) & (A ^ (tmp & 0x00FF))) & 0x0080) == 0 ? 0: 1);
 
         A = (byte)(tmp & 0x00FF);
     }
@@ -1651,7 +1652,7 @@ public class CPU {
      */
     public void AND() {
         fetch();
-        A &= fetched;
+        A &= (fetched & 0x00FF);
 
         setFlag(StatusFlag.Z, (A & 0x00FF) == 0 ? 1 : 0);
         setFlag(StatusFlag.N, (A & 0x80) == 0 ? 0 : 1);
@@ -1740,7 +1741,7 @@ public class CPU {
      */
     public void BIT() {
         fetch();
-        int tmp = fetched & A;
+        int tmp = (fetched & 0x00FF) & A;
 
         setFlag(StatusFlag.Z, (tmp & 0x00FF) == 0 ? 1 : 0);
         setFlag(StatusFlag.N, (fetched & 0x80) == 0 ? 0 : 1);
@@ -1941,7 +1942,7 @@ public class CPU {
     public void DEC() {
         fetch();
 
-        int result = fetched - 1;
+        int result = (fetched & 0x00FF) - 1;
         write(absoluteAddress, (byte)(result & 0x00FF));
         setFlag(StatusFlag.Z, (result & 0x00FF) == 0 ? 1 : 0);
         setFlag(StatusFlag.N, (result & 0x80) == 0 ? 0 : 1);
@@ -1979,7 +1980,7 @@ public class CPU {
     public void EOR() {
         fetch();
 
-        A ^= fetched;
+        A ^= (fetched & 0x00FF);
         setFlag(StatusFlag.Z, A == 0 ? 1 : 0);
         setFlag(StatusFlag.N, (A & 0x80) == 0 ? 0 : 1);
 
@@ -1994,7 +1995,7 @@ public class CPU {
     public void INC() {
         fetch();
 
-        int result = fetched + 1;
+        int result = (fetched & 0x00FF) + 1;
         write(absoluteAddress, (byte)(result & 0x00FF));
         setFlag(StatusFlag.Z, (result & 0x00FF) == 0 ? 1 : 0);
         setFlag(StatusFlag.N, (result & 0x80) == 0 ? 0 : 1);
@@ -2054,7 +2055,7 @@ public class CPU {
     public void LDA() {
         fetch();
 
-        A = (byte)fetched;
+        A = (byte) (fetched & 0x00FF);
 
         setFlag(StatusFlag.Z, A == 0 ? 1 : 0);
         setFlag(StatusFlag.N, (A & 0x80) == 0 ? 0 : 1);
@@ -2068,7 +2069,7 @@ public class CPU {
     public void LDX() {
         fetch();
 
-        X = (byte)fetched;
+        X = (byte) (fetched & 0x00FF);
 
         setFlag(StatusFlag.Z, X == 0 ? 1 : 0);
         setFlag(StatusFlag.N, (X & 0x80) == 0 ? 0 : 1);
@@ -2084,7 +2085,7 @@ public class CPU {
     public void LDY() {
         fetch();
 
-        Y = (byte)fetched;
+        Y = (byte)(fetched & 0x00FF);
 
         setFlag(StatusFlag.Z, Y == 0 ? 1 : 0);
         setFlag(StatusFlag.N, (Y & 0x80) == 0 ? 0 : 1);
@@ -2135,7 +2136,7 @@ public class CPU {
     public void ORA() {
         fetch();
 
-        A |= fetched;
+        A = (byte)(A | (fetched & 0x00FF));
         setFlag(StatusFlag.Z, A == 0 ? 1 : 0);
         setFlag(StatusFlag.N, (A & 0x80) == 0 ? 0 : 1);
 
@@ -2444,8 +2445,6 @@ public class CPU {
         // 获取指令
         Instruction instruction = Instruction.fromCode(operationCode);
 
-        cycles = instruction.cycles;
-
         if (logging) {
             String operationName = INSTRUCTION_SET[operationCode & 0xFF];
             int operationLength = INSTRUCTION_LENGTH[operationCode & 0xFF];
@@ -2462,7 +2461,7 @@ public class CPU {
 
                 if (operationLength != 1) {
                     parameters.insert(0,  "$");
-                    parameters.append(String.format(" = %02X", fetched));
+//                    parameters.append(String.format(" = %02X", fetched));
                 }
 
                 if (instruction.addressingMode == AddressingMode.Immediate) {
@@ -2473,16 +2472,16 @@ public class CPU {
 //            System.out.println(String.format("%04X  %-8s \t%s %-26s  A:%02X X:%02X Y:%02X P:%02X SP:%02X PPU: %04X CYC: %d",
 //                    tmpPC, operationCodeString.toString(), operation, parameters, A, X, Y, P, (byte)S, bus.ppu.getAddress(), cycles));
 
-            System.out.println(String.format("%04X  %-8s  %s %-26s  A:%02X X:%02X Y:%02X P:%02X SP:%02X",
-                    tmpPC, operationCodeString.toString(), operationName, parameters.toString(), A, X, Y, P, (byte)S));
+            System.out.println(String.format("%04X  %-8s  %s %-26s  A:%02X X:%02X Y:%02X P:%02X SP:%02X CYC:%d",
+                    tmpPC, operationCodeString.toString(), operationName, parameters.toString(), A, X, Y, P, (byte)S, cycles));
         }
 
         // 执行指令（包含了寻址过程）
         instruction.operation(CPU.this);
+        cycles += instruction.cycles;
 
         setFlag(StatusFlag.U, 1);
 
         clockCount++;
-        cycles--;
     }
 }

@@ -1,6 +1,8 @@
 package com.arcsinw.nesemulator;
 
 
+import java.util.Arrays;
+
 /**
  * CPU总线
  * 16bit 0x0000 ~ 0xFFFF 共 64KB
@@ -41,7 +43,10 @@ public class CPUBus {
     private long cycles = 0;
 
     public CPUBus() {
-
+        controller[0] = 0x40;
+        controller[1] = 0x40;
+        controllerState[0] = 0x40;
+        controllerState[1] = 0x40;
     }
 
     /**
@@ -145,6 +150,7 @@ public class CPUBus {
     public void reset() {
         cpu.reset();
         ppu.reset();
+        Arrays.fill(cpuRAM, (byte)0xFF);
         cycles = 0;
     }
 }

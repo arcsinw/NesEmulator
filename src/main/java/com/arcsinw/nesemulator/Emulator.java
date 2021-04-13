@@ -134,8 +134,9 @@ public class Emulator extends Frame {
     public static void main(String[] args) throws IOException {
         Emulator emulator = new Emulator();
 //        String romPath = "/nestest.nes";
-        String romPath = "/Donkey Kong.nes";
-//        String romPath = "/896.nes";
+//        String romPath = "/Donkey Kong.nes";
+        String romPath = "/896.nes";
+//        String romPath = "/BattleCity.nes";
         cartridge = new Cartridge(romPath);
         System.out.println(cartridge.header);
 
