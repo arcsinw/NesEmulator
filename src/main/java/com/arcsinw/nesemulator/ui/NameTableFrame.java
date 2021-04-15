@@ -100,7 +100,8 @@ public class NameTableFrame extends Frame {
             for (int j = 0; j < 960; j++) {
                 int s = (ppu.ppuRead(0x2000 + 0x0400 * i + j) & 0x00FF) * 16;
 //                int s = (nameTable[i][j] & 0x00FF) * 16;
-                System.arraycopy(patternTable[0], s, nameTableColorMap[i], j * 16, 16);
+                int backgroundAddress = ppu.getPpuCtrl(PPU.PPUCtrl.BackgroundSelect);
+                System.arraycopy(patternTable[backgroundAddress], s, nameTableColorMap[i], j * 16, 16);
             }
         }
 

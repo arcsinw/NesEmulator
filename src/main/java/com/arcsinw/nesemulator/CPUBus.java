@@ -43,6 +43,7 @@ public class CPUBus {
     private long cycles = 0;
 
     public CPUBus() {
+        controllerState[0] = 0x10;
     }
 
     /**

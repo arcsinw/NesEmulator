@@ -1348,7 +1348,7 @@ public class CPU {
     /**
      * Program Counter，程序计数器，指示下一条指令的地址, 2byte
      */
-    private int PC = 0x0000;
+    public int PC = 0x0000;
 
     /**
      * Stack pointer, 1 byte, unsigned
@@ -2302,7 +2302,6 @@ public class CPU {
     public void RTS() {
         S++;
         PC = read16(STACK_BASE_ADDRESS + S++);
-
         PC++;
     }
 
@@ -2454,7 +2453,7 @@ public class CPU {
 
     // endregion
 
-    void diasm(byte[] codes) {
+    public void diasm(byte[] codes) {
         int len = codes.length;
 
         int start = 0;
@@ -2491,7 +2490,7 @@ public class CPU {
         return fetched;
     }
 
-    void clock() {
+    public void clock() {
         int tmpPC = PC;
         operationCode = read(PC++) & 0x00FF;
         setFlag(StatusFlag.U, 1);

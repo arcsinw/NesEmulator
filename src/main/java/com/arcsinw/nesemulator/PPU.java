@@ -39,7 +39,7 @@ public class PPU {
 
     // region 基于内存的寄存器 0x2000 - 0x2007
 
-    enum PPUCtrl {
+    public enum PPUCtrl {
         /**
          * 	Generate an NMI at the start of the
          *  vertical blanking interval (0: off; 1: on)
@@ -148,17 +148,17 @@ public class PPU {
     }
 
     /**
-     * $2000
+     * $2000 Write only
      */
     private byte ppuCtrl = 0x00;
 
     /**
-     * $2001
+     * $2001 Write only
      */
     private byte ppuMask = 0x00;
 
     /**
-     * $2002
+     * $2002 Read only
      */
     private byte ppuStatus = 0x00;
 
@@ -174,12 +174,13 @@ public class PPU {
 
     /**
      * OAM DMA high address $4014
+     * for fast copying of 256 bytes from CPU RAM to OAM
      */
     private byte oamDMA = 0x00;
 
     /**
      * fine scroll position (two writes: X scroll, Y scroll)
-     * $2005
+     * $2005 Write only
      */
     private byte PpuScroll = 0x00;
 
@@ -243,7 +244,15 @@ public class PPU {
 
     // endregion
 
+    // region 字段
+    StringBuilder tmp = new StringBuilder();
+
+    private int tmpPpuAddress = 0x00;
+    private boolean isFirstPpuAddress = true;
+    private int ppuDataBuffer = 0x00;
     private boolean logging = false;
+
+    // endregion
 
     /**
      * 为方便实现 卷轴滚动 虚拟的寄存器
@@ -349,11 +358,6 @@ public class PPU {
         ppuStatus = (byte) ((ppuStatus & 0xE0) | (data & 0x1F));
     }
 
-    StringBuilder tmp = new StringBuilder();
-
-    private int tmpPpuAddress = 0x00;
-    private boolean isFirstPpuAddress = true;
-    private int ppuDataBuffer = 0x00;
 
     /**
      *
@@ -393,10 +397,13 @@ public class PPU {
         else {
             switch (address) {
                 case 0x0000:
+                    data = ppuCtrl;
                     break;
                 case 0x0001:
                     break;
                 case 0x0002:
+                    // 暂时写死 使程序能往下运行
+                    setPpuStatus(PPUStatus.VBlank, 1);
                     // ppu status 只有前三位有效
 //                    data = (byte) ((ppuStatus & 0xE0) | (ppuDataBuffer & 0x1F));
                     data = ppuStatus;
