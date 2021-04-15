@@ -1,5 +1,6 @@
 package com.arcsinw.nesemulator;
 
+
 import java.util.Arrays;
 import java.util.Optional;
 
@@ -33,10 +34,21 @@ public class CPU {
         this.bus = b;
     }
 
+    /**
+     *
+     * @param address
+     * @return
+     */
     byte read(int address) {
         return bus.read(address);
     }
 
+    /**
+     * 从address读取连续的2个字节
+     * 保证是正数
+     * @param address
+     * @return
+     */
     int read16(int address) {
         byte lo = read(address);
         byte hi = read(address + 1);
@@ -164,21 +176,60 @@ public class CPU {
     };
 
     public enum AddressingMode {
-        Implied(0),         // 隐含寻址，无需明确指出操作地址，如CLC，RTS
-        Accumulator(1),     // 累加器寻址
+        /**
+         * 隐含寻址，无需明确指出操作地址，如CLC，RTS
+         */
+        Implied(0),
+        /**
+         * 累加器寻址,操作对象为 累加器A
+         */
+        Accumulator(1),
+        /**
+         * 立即数寻址，指令中包含了1字节的操作数
+         */
         Immediate(2),
+        /**
+         * 零页寻址 0x0000 - 0x00FF，1字节的操作数地址
+         */
         ZeroPage(3),
+        /**
+         * 1字节的操作数地址
+         */
         ZeroPageX(4),
+        /**
+         * 1字节的操作数地址
+         */
         ZeroPageY(5),
+        /**
+         * 相对地址寻址,包含1字节的相对地址
+         */
         Relative(6),
+        /**
+         * 绝对地址寻址，2字节的操作数地址
+         */
         Absolute(7),
+        /**
+         * 2字节的操作数地址
+         */
         AbsoluteX(8),
+        /**
+         * 2字节的操作数地址
+         */
         AbsoluteY(9),
+        /**
+         * 2字节的操作数地址
+         */
         Indirect(10),
+        /**
+         * 索引间接寻址 X，2字节的操作数地址
+         */
         IndexedIndirectX(11),
+        /**
+         * 2字节的操作数地址
+         */
         IndirectIndexedY(12);
 
-        private int key;
+        private final int key;
 
         private AddressingMode(int k) {
             key = k;
@@ -1344,10 +1395,10 @@ public class CPU {
          */
         N(1 << 7);
 
-        private int mask;
+        private byte mask;
 
         private StatusFlag(int m) {
-            this.mask = m;
+            this.mask = (byte)m;
         }
     }
 
@@ -1402,8 +1453,8 @@ public class CPU {
         write(STACK_BASE_ADDRESS + S--, (byte)(PC & 0x00FF));
 
         // 设置状态寄存器（发生中断），将状态寄存器写入栈
-        setFlag(StatusFlag.B, 0);
         setFlag(StatusFlag.U, 1);
+        setFlag(StatusFlag.B, 0);
         setFlag(StatusFlag.I, 1);
 
         write(STACK_BASE_ADDRESS + S--, P);
@@ -1428,8 +1479,8 @@ public class CPU {
             write(STACK_BASE_ADDRESS + S--, (byte)(PC & 0x00FF));
 
             // 设置状态寄存器（发生中断），将状态寄存器写入栈
-            setFlag(StatusFlag.B, 0);
             setFlag(StatusFlag.U, 1);
+            setFlag(StatusFlag.B, 0);
             setFlag(StatusFlag.I, 1);
 
             write(STACK_BASE_ADDRESS + S--, P);
@@ -1590,12 +1641,12 @@ public class CPU {
 
     /**
      * 间接X变址: Pre-indexed Indirect Addressing 双字节
-     * $A1 $3E
-     * 先与寄存器X变址 $3E + X 的两个字节作为新的地址
+     * A1 $3E
+     * 先与寄存器X变址 $3E + X, 这个地址连续的两个字节指向零页,从零页中获取真正的地址
      * 再使用这个新地址进行间接寻址
      */
     public byte IZX() {
-        int address = read(PC++);
+        int address = (read(PC++) & 0x00FF);
 
         int lo = read((address + X) & 0x00FF);
         int hi = read((address + X + 1) & 0x00FF);
@@ -1610,7 +1661,7 @@ public class CPU {
      * 先间接寻址后于寄存器Y变址
      */
     public byte IZY() {
-        int address = read(PC++);
+        int address = (read(PC++) & 0x00FF);
 
         int lo = read(address & 0x00FF); // 零页地址
         int hi = read((address + 1) & 0x00FF);
@@ -2156,10 +2207,7 @@ public class CPU {
      * 将 状态寄存器 的值push到栈中
      */
     public void PHP() {
-        setFlag(StatusFlag.B, 1);
-        setFlag(StatusFlag.U, 1);
-
-        write(STACK_BASE_ADDRESS + S--, P);
+        write(STACK_BASE_ADDRESS + S--, (byte) (P | StatusFlag.B.mask | StatusFlag.U.mask));
         setFlag(StatusFlag.B, 0);
         setFlag(StatusFlag.U, 0);
     }
@@ -2178,11 +2226,15 @@ public class CPU {
 
     /**
      * Pull Processor Status
-     * 从栈取出 1字节 设置为标志位
+     * 从栈取出 1字节 设置为标志位 (忽略bit 4，bit 5)
+     * Two instructions (PLP and RTI) pull a byte from the stack and set all the flags. They ignore bits 5 and 4.
+     * https://wiki.nesdev.com/w/index.php/Status_flags
      */
     public void PLP() {
         S++;
-        P = read(STACK_BASE_ADDRESS + S);
+        // 0x30 0b0011 0000
+        // 0xCF 0b1100 1111
+        P = (byte)((P & 0x30) | (read(STACK_BASE_ADDRESS + S) & 0xCF)); // 保持P的bit 4,5不变
         setFlag(StatusFlag.U, 1);
     }
 
@@ -2229,11 +2281,13 @@ public class CPU {
 
     /**
      * Return from Interrupt
-     * 恢复中断后的现场
+     * 恢复中断后的现场 (忽略bit 4，bit 5)
+     * Two instructions (PLP and RTI) pull a byte from the stack and set all the flags. They ignore bits 5 and 4.
+     * https://wiki.nesdev.com/w/index.php/Status_flags
      */
     public void RTI() {
         S++;
-        P = read(STACK_BASE_ADDRESS + S);
+        P = (byte)((P & 0x30) | (read(STACK_BASE_ADDRESS + S) & 0xCF));
         setFlag(StatusFlag.B, 0);
         setFlag(StatusFlag.U, 0);
 
@@ -2446,34 +2500,7 @@ public class CPU {
         Instruction instruction = Instruction.fromCode(operationCode);
 
         if (logging) {
-            String operationName = INSTRUCTION_SET[operationCode & 0xFF];
-            int operationLength = INSTRUCTION_LENGTH[operationCode & 0xFF];
-
-            StringBuilder operationCodeString = new StringBuilder(String.format("%02X", operationCode));
-            StringBuilder parameters = new StringBuilder();
-            if (INSTRUCTION_ADDRESSING_MODE[operationCode & 0xFF] == AddressingMode.Accumulator.key) {
-                parameters.insert(0, "A");
-            } else {
-                for (int i = 1; i < operationLength; i++) {
-                    parameters.insert(0, String.format("%02X", read(tmpPC + i)));
-                    operationCodeString.append(" " + String.format("%02X", read(tmpPC + i)));
-                }
-
-                if (operationLength != 1) {
-                    parameters.insert(0,  "$");
-//                    parameters.append(String.format(" = %02X", fetched));
-                }
-
-                if (instruction.addressingMode == AddressingMode.Immediate) {
-                    parameters.insert(0, "#");
-                }
-            }
-
-//            System.out.println(String.format("%04X  %-8s \t%s %-26s  A:%02X X:%02X Y:%02X P:%02X SP:%02X PPU: %04X CYC: %d",
-//                    tmpPC, operationCodeString.toString(), operation, parameters, A, X, Y, P, (byte)S, bus.ppu.getAddress(), cycles));
-
-            System.out.println(String.format("%04X  %-8s  %s %-26s  A:%02X X:%02X Y:%02X P:%02X SP:%02X CYC:%d",
-                    tmpPC, operationCodeString.toString(), operationName, parameters.toString(), A, X, Y, P, (byte)S, cycles));
+            log(tmpPC, operationCode);
         }
 
         // 执行指令（包含了寻址过程）
@@ -2483,5 +2510,123 @@ public class CPU {
         setFlag(StatusFlag.U, 1);
 
         clockCount++;
+    }
+
+    /**
+     *
+     * @param pc 当前指令的PC
+     * @param operationCode
+     */
+    void log(int pc, int operationCode) {
+        String operationName = INSTRUCTION_SET[operationCode & 0xFF];
+        int operationLength = INSTRUCTION_LENGTH[operationCode & 0xFF];
+        AddressingMode addressingMode = ADDRESSING_MODE_TABLE[INSTRUCTION_ADDRESSING_MODE[operationCode & 0xFF]];
+
+        StringBuilder logStringBuilder = new StringBuilder();
+        StringBuilder operationHexStringBuilder = new StringBuilder(String.format("%02X", operationCode));
+        int parameter = 0x00;
+
+        if (operationLength == 2) {
+            parameter = read(pc + 1);
+        } else if (operationLength == 3) {
+            parameter = read16(pc + 1);
+        }
+
+        for (int i = 1; i < operationLength; i++) {
+            operationHexStringBuilder.append(" " + String.format("%02X", read(pc + i)));
+        }
+
+        logStringBuilder.append(String.format("%04X  %-8s  %s ", pc, operationHexStringBuilder.toString(), operationName));
+
+        int memoryData = 0x00;
+        int address = 0;
+        byte lo = 0;
+        byte hi = 0;
+        int absoluteAddress = 0;
+
+        switch (addressingMode) {
+            case Implied:
+            case Accumulator:
+                logStringBuilder.append(String.format("%-28s", " "));
+                break;
+            case Immediate:
+                logStringBuilder.append(String.format("#$%02X %23s", (parameter & 0x00FF), " "));
+                break;
+            case ZeroPage:
+                absoluteAddress = read(pc + 1);
+                absoluteAddress &= 0x00FF;
+                memoryData = (read(absoluteAddress) & 0x00FF);
+                logStringBuilder.append(String.format("$%02X = %02X %19s", (parameter & 0x00FF), (memoryData & 0x00FF), " "));
+                break;
+            case ZeroPageX:
+                absoluteAddress = read(pc + 1) + X;
+                absoluteAddress &= 0x00FF;
+                memoryData = (read(absoluteAddress) & 0x00FF);
+                logStringBuilder.append(String.format("$%02X,X @ %02X = %02X %12s", (parameter & 0x00FF), absoluteAddress, (memoryData & 0x00FF), " "));
+                break;
+            case ZeroPageY:
+                absoluteAddress = read(pc + 1) + Y;
+                absoluteAddress &= 0x00FF;
+                memoryData = (read(absoluteAddress) & 0x00FF);
+                logStringBuilder.append(String.format("$%02X,Y @ %02X = %02X %12s", (parameter & 0x00FF), absoluteAddress, (memoryData & 0x00FF), " "));
+                break;
+            case Relative:
+                int rel = read(pc + 1);
+                logStringBuilder.append(String.format("$%-27X", PC + 1 + rel));
+                break;
+            case Absolute:
+                if (operationName.equals("LDX")) {
+                    absoluteAddress = read16(PC);
+                    memoryData = (read(absoluteAddress) & 0x00FF);
+                    logStringBuilder.append(String.format("$%04X = %02X %16s", (parameter & 0xFFFF), memoryData, " "));
+                } else {
+                    logStringBuilder.append(String.format("$%04X %22s", (parameter & 0xFFFF), " "));
+                }
+
+                break;
+            case AbsoluteX:
+                address = read16(pc + 1);
+                absoluteAddress = (address + (X & 0xFF)) & 0xFFFF;
+                memoryData = (read(absoluteAddress) & 0x00FF);
+                logStringBuilder.append(String.format("$%04X,X @ %04X = %02X %8s", address, absoluteAddress, memoryData, " "));
+                break;
+            case AbsoluteY:
+                address = read16(pc + 1);
+                absoluteAddress = (address + (Y & 0xFF)) & 0xFFFF;
+                memoryData = (read(absoluteAddress) & 0x00FF);
+                logStringBuilder.append(String.format("$%04X,Y @ %04X = %02X %8s", address, absoluteAddress, memoryData, " "));
+                break;
+            case Indirect:
+                address = read16(pc + 1);
+                int address2 = (address & 0xFF00) | ((address + 1) & 0x00FF);
+                absoluteAddress = ((read(address2) & 0x00FF) << 8) | (read(address) & 0x00FF);
+                logStringBuilder.append(String.format("($%04X) = %04X %13s", address, absoluteAddress, " "));
+                break;
+            case IndexedIndirectX:
+                address = (read(pc + 1) & 0x00FF);
+
+                lo = read((address + X) & 0x00FF);
+                hi = read((address + X + 1) & 0x00FF);
+
+                absoluteAddress = (((hi & 0x00FF) << 8) | (lo & 0x00FF));
+                memoryData = (read(absoluteAddress) & 0x00FF);
+                logStringBuilder.append(String.format("($%02X,X) @ %02X = %04X = %02X    ", address, (address + X) & 0xFFFF, absoluteAddress, memoryData));
+                break;
+            case IndirectIndexedY:
+                address = (read(pc + 1) & 0x00FF);
+
+                lo = read(address & 0x00FF); // 零页地址
+                hi = read((address + 1) & 0x00FF);
+                absoluteAddress = ((((hi & 0x00FF) << 8) | (lo & 0x00FF)) + (Y & 0xFF)) & 0xFFFF;
+                memoryData = (read(absoluteAddress) & 0x00FF);
+                logStringBuilder.append(String.format("($%02X),Y = %04X @ %04X = %02X  ", address, (((hi & 0x00FF) << 8) | (lo & 0x00FF)), absoluteAddress, memoryData));
+                break;
+            default:
+
+        }
+
+        logStringBuilder.append(String.format("A:%02X X:%02X Y:%02X P:%02X SP:%02X CYC:%d", A, X, Y, P, (byte)S, cycles));
+
+        System.out.println(logStringBuilder.toString());
     }
 }

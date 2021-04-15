@@ -10,6 +10,7 @@ import java.awt.event.KeyEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.awt.image.BufferedImage;
+import java.awt.image.DataBufferInt;
 import java.io.IOException;
 import java.util.Arrays;
 
@@ -19,6 +20,8 @@ public class Emulator extends Frame {
     private static CPUBus cpuBus = new CPUBus();
 
     private static Cartridge cartridge;
+    private BufferedImage image = new BufferedImage(32 * 8, 30 * 8, BufferedImage.TYPE_INT_RGB);
+
 
     private static final int SCREEN_WIDTH = 256;
     private static final int SCREEN_HEIGHT = 240;
@@ -33,9 +36,8 @@ public class Emulator extends Frame {
 
         {
             Menu fileMenu = new Menu("文件");
-            fileMenu.add(new MenuItem("打开") {
-
-            });
+            fileMenu.add(new MenuItem("打开"));
+            fileMenu.addActionListener(e -> openFilePicker());
             menuBar.add(fileMenu);
         }
 
@@ -75,7 +77,9 @@ public class Emulator extends Frame {
     private Panel panel = new Panel() {
         @Override
         public void paint(Graphics g) {
-            displayNameTable();
+            if (cartridge != null) {
+                displayNameTable();
+            }
         }
     };
 
@@ -86,7 +90,6 @@ public class Emulator extends Frame {
 
     public Emulator() {
         setTitle("NesEmulator");
-//        setSize(SCREEN_WIDTH * SCREEN_RATIO, SCREEN_HEIGHT * SCREEN_RATIO);
         setBackground(Color.black);
         setLayout(new FlowLayout());
         addMenuBar();
@@ -111,6 +114,7 @@ public class Emulator extends Frame {
                 for (int i = 0; i < 8; i++) {
                     if (keyCode == KEY_MAPPING[i]) {
                         cpuBus.controller[0] |= (byte)(1 << (7 - i));
+                        System.out.println(String.format("click: 0x%02X", cpuBus.controller[0]));
                     }
                 }
             }
@@ -121,6 +125,7 @@ public class Emulator extends Frame {
                 for (int i = 0; i < 8; i++) {
                     if (keyCode == KEY_MAPPING[i]) {
                         cpuBus.controller[0] &= (byte)(~(1 << (7 - i)));
+                        System.out.println(String.format("released: 0x%02X", cpuBus.controller[0]));
                     }
                 }
             }
@@ -133,9 +138,9 @@ public class Emulator extends Frame {
 
     public static void main(String[] args) throws IOException {
         Emulator emulator = new Emulator();
-//        String romPath = "/nestest.nes";
+        String romPath = "/nestest.nes";
 //        String romPath = "/Donkey Kong.nes";
-        String romPath = "/896.nes";
+//        String romPath = "/896.nes";
 //        String romPath = "/BattleCity.nes";
         cartridge = new Cartridge(romPath);
         System.out.println(cartridge.header);
@@ -179,6 +184,36 @@ public class Emulator extends Frame {
         if (cartridge != null) {
             NameTableFrame patternTableFrame = new NameTableFrame(ppu);
             patternTableFrame.displayNameTable();
+        }
+    }
+
+    public void loadRom(String romPath) throws IOException {
+        cartridge = new Cartridge(romPath);
+        System.out.println(cartridge.header);
+
+        System.out.println(cartridge.header);
+        cpuBus.setCartridge(cartridge);
+
+        int line = 0;
+        cpuBus.reset();
+
+        while (line++ >= 0 && true) {
+            cpuBus.clock();
+
+            if (line >= 400000) {
+//                emulator.displayNameTable();
+            }
+        }
+    }
+
+    public void openFilePicker()  {
+        FileDialog fileDialog = new FileDialog(this, "选择文件", FileDialog.LOAD);
+        fileDialog.setVisible(true);
+
+        try {
+            loadRom(fileDialog.getDirectory() + fileDialog.getFile());
+        } catch (IOException e) {
+            e.printStackTrace();
         }
     }
 
@@ -268,7 +303,7 @@ public class Emulator extends Frame {
     }
 
     public void displayNameTable() {
-        BufferedImage image = new BufferedImage(32 * 8, 30 * 8, BufferedImage.TYPE_3BYTE_BGR);
+        int[] imageData = ((DataBufferInt)image.getRaster().getDataBuffer()).getData();
 
         /**
          * 调色板 共32种颜色
@@ -280,7 +315,7 @@ public class Emulator extends Frame {
          * 每个 8x8的 Tile 使用1字节来索引，共 32*30=960个Tile 使用960字节
          * 剩下的64字节是Attribute Table 每个字节控制16个Tile的颜色，每4个田字格Tile 共用 2bit 作为颜色的前两位
          */
-        byte[][] nameTable = ppu.getNameTable();
+//        byte[][] nameTable = ppu.getNameTable();
 
         /**
          * 共8K
@@ -300,7 +335,7 @@ public class Emulator extends Frame {
             for (int j = 0; j < 960; j++) {
                 int s = (ppu.ppuRead(0x2000 + 0x0400 * i + j) & 0x00FF) * 16;
 //                int s = (nameTable[i][j] & 0x00FF) * 16;
-                System.arraycopy(patternTable[1], s, nameTableColorMap[i], j * 16, 16);
+                System.arraycopy(patternTable[0], s, nameTableColorMap[i], j * 16, 16);
             }
         }
 
@@ -315,7 +350,7 @@ public class Emulator extends Frame {
 
         for (int i = 0; i < 2; i++) {
             // 读最后64字节作为Attribute Table，1字节控制16个tile
-            byte[] attributeTable = Arrays.copyOfRange(nameTable[i], 960, 1024);
+//            byte[] attributeTable = Arrays.copyOfRange(nameTable[i], 960, 1024);
 
             for (int j = 0; j < 960; j++) { // tile
                 // 读 16 字节
@@ -327,8 +362,8 @@ public class Emulator extends Frame {
                 // 4tile x 4tile 的大Tile id
                 int bigTileId = (row / 4) * 8 + col / 4;
 
-//                byte colorByte = ppu.ppuRead(0x2000 + 0x0400 * i + 960 + bigTileId);
-                byte colorByte =  attributeTable[bigTileId];
+                byte colorByte = ppu.ppuRead(0x2000 + 0x0400 * i + 960 + bigTileId);
+//                byte colorByte =  attributeTable[bigTileId];
 
                 int bigTileLeftTopRow = (bigTileId / 8) * 4;
                 int bigTileLeftTopCol = (bigTileId % 8) * 4;
@@ -357,16 +392,19 @@ public class Emulator extends Frame {
                 for (int i = 0; i < 64; i++) { // 像素
                     // 256x240的图片
 //                    System.out.println(String.format("% 3d % 3d % 3d", k, startCol + i % 8, startRow + i / 8));
-                    image.setRGB(startCol + i % 8, startRow + i / 8, fromIndex(palette[imageColor[p][k][i]]).getRGB());
+//                    image.setRGB(startCol + i % 8, startRow + i / 8, fromIndex(palette[imageColor[p][k][i]]).getRGB());
+                    int x = startCol + i % 8;
+                    int y = startRow + i / 8;
+                    imageData[y * 256 + x] =  fromIndex(palette[imageColor[p][k][i]]).getRGB();
                 }
             }
-
-            Graphics graphics = this.panel.getGraphics();
-            graphics.drawImage(image,
-                    CONTENT_WIDTH * CONTENT_RATIO * p, 0,
-                    CONTENT_WIDTH * CONTENT_RATIO,
-                    CONTENT_HEIGHT * CONTENT_RATIO,
-                    this.panel);
         }
+
+        Graphics graphics = this.panel.getGraphics();
+        graphics.drawImage(image,
+                0, 0,
+                CONTENT_WIDTH * CONTENT_RATIO,
+                CONTENT_HEIGHT * CONTENT_RATIO,
+                this.panel);
     }
 }

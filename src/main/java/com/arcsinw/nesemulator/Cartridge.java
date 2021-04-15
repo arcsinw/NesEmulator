@@ -1,5 +1,6 @@
 package com.arcsinw.nesemulator;
 
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 
@@ -185,6 +186,7 @@ public class Cartridge {
     }
 
     public Cartridge(String filePath) throws IOException {
+//        InputStream inputStream = new FileInputStream(filePath);
         InputStream inputStream = Cartridge.class.getResourceAsStream(filePath);
 //        URL url = Cartridge.class.getResource("/");
 //        System.out.println(url.getPath());

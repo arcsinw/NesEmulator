@@ -43,10 +43,6 @@ public class CPUBus {
     private long cycles = 0;
 
     public CPUBus() {
-        controller[0] = 0x40;
-        controller[1] = 0x40;
-        controllerState[0] = 0x40;
-        controllerState[1] = 0x40;
     }
 
     /**
@@ -84,7 +80,7 @@ public class CPUBus {
             data = ppu.cpuRead(address & 0x0007, readOnly);
         } else if (address >= 0x4016 && address <= 0x4017) {
             // 手柄
-            data = (byte) ((controllerState[address & 0x0001] & 0x80) > 0 ? 1 : 0);
+            data = (byte) (0x40 | ((controllerState[address & 0x0001] & 0x80) > 0 ? 1 : 0));
             controllerState[address & 0x0001] <<= 1;
         } else if (address >= 0x8000 && address <= 0xFFFF) {
             data = cartridge.cpuRead(address);
@@ -150,7 +146,7 @@ public class CPUBus {
     public void reset() {
         cpu.reset();
         ppu.reset();
-        Arrays.fill(cpuRAM, (byte)0xFF);
+//        Arrays.fill(cpuRAM, (byte)0xFF);
         cycles = 0;
     }
 }
