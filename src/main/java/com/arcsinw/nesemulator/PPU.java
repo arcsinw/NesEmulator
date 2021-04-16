@@ -37,7 +37,7 @@ public class PPU {
 
     // endregion
 
-    // region 基于内存的寄存器 0x2000 - 0x2007
+    // region 基于内存的寄存器 0x2000 - 0x2007, 0x4014
 
     public enum PPUCtrl {
         /**
@@ -254,6 +254,49 @@ public class PPU {
 
     // endregion
 
+    public static class OAMEntry {
+        /**
+         * Y position of top of sprite
+         */
+        public byte y;
+
+        /**
+         * Tile index number
+         */
+        public byte id;
+
+        /**
+         * Attributes
+         * 定义Sprite渲染的方式
+         */
+        public byte attribute;
+
+        /**
+         * X position of left side of sprite.
+         */
+        public byte x;
+
+        public OAMEntry(byte y, byte id, byte attribute, byte x) {
+            this.y = y;
+            this.id = id;
+            this.attribute = attribute;
+            this.x = x;
+        }
+
+        @Override
+        public String toString() {
+            return String.format("(%d, %d)      ID: %02X       AT: %02X", x, y, id, attribute);
+        }
+    }
+
+    /**
+     * OAM (Object Attribute Memory)
+     *
+     */
+    public byte[] oam = new byte[256];
+//    private OAMEntry[] oam = new OAMEntry[64];
+
+
     /**
      * 为方便实现 卷轴滚动 虚拟的寄存器
      */
@@ -314,16 +357,19 @@ public class PPU {
      */
     public void cpuWrite(int address, byte data) {
         switch (address) {
-            case 0x0000:
+            case 0x0000:    // PPU Control
                 setPpuCtrlValue(data);
                 break;
-            case 0x0001:
+            case 0x0001:    // PPU Mask
                 setPpuMaskValue(data);
                 break;
-            case 0x0002: // Status (not writeable)
+            case 0x0002:    // PPU Status (not writeable)
                 break;
-            case 0x0003:
+            case 0x0003:    // OAM Address
                 oamAddress = data;
+                break;
+            case 0x0004:
+                oam[oamAddress] = data;
                 break;
             case 0x0006: // PPU Address
                 // CPu 和 PPU在不同的总线上，无法直接访问内存，通过 0x0006和0x0007来实现内存的读写
@@ -358,7 +404,6 @@ public class PPU {
         ppuStatus = (byte) ((ppuStatus & 0xE0) | (data & 0x1F));
     }
 
-
     /**
      *
      * 读取寄存器时可能会改变它们的值
@@ -368,7 +413,7 @@ public class PPU {
     public byte cpuRead(int address, boolean readOnly) {
         byte data = 0x00;
 
-        if (readOnly)
+        if (readOnly) // for test
         {
             // Reading from PPU registers can affect their contents
             // so this read only option is used for examining the
@@ -396,21 +441,24 @@ public class PPU {
         }
         else {
             switch (address) {
-                case 0x0000:
+                case 0x0000:    // PPU Control
                     data = ppuCtrl;
                     break;
-                case 0x0001:
+                case 0x0001:    // PPU Mask
                     break;
-                case 0x0002:
+                case 0x0002:    // PPU Status
                     // 暂时写死 使程序能往下运行
-                    setPpuStatus(PPUStatus.VBlank, 1);
+//                    setPpuStatus(PPUStatus.VBlank, 1);
                     // ppu status 只有前三位有效
 //                    data = (byte) ((ppuStatus & 0xE0) | (ppuDataBuffer & 0x1F));
                     data = ppuStatus;
                     setPpuStatus(PPUStatus.VBlank, 0);
                     isFirstPpuAddress = true;
                     break;
-                case 0x0003:
+                case 0x0003:    // OAM Address
+                    break;
+                case 0x0004:
+                    data = oam[oamAddress];
                     break;
                 case 0x0006:    // PPU Address
                     break;

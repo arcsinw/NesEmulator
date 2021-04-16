@@ -38,12 +38,28 @@ public class CPUBus {
 
     private byte[] controllerState = new byte[2];
 
+    public Joypad joypad1 = new Joypad();
+    public Joypad joypad2 = new Joypad();
+
+    // endregion
+
+
+    // region DMA
+    private byte dmaPage = 0x00;
+    private byte dmaOffset = 0x00;
+    private byte dmaData = 0x00;
+
+    private boolean isDMAStart = false;
+
+    /**
+     * DMA 可能需要等待1或2个CPU时钟周期才能开始
+     */
+    private boolean isDMACanStart = false;
     // endregion
 
     private long cycles = 0;
 
     public CPUBus() {
-        controllerState[0] = 0x10;
     }
 
     /**
@@ -59,8 +75,14 @@ public class CPUBus {
             // 0x2000 - 0x2007 是PPU的8个寄存器，其余是mirror
             // CPU通过寄存器读写PPU
             ppu.cpuWrite(address & 0x0007, data);
-        } else if (address >= 0x4016 && address <= 0x4017) {
-            // 两个手柄
+        } else if (address == 0x4014) {
+            // 执行DMA操作
+            dmaPage = data;
+            dmaOffset = 0x00;
+
+            isDMAStart = true;
+        } else if (address == 0x4016) {
+            joypad1.write(0x4016, data);
             controllerState[address & 0x0001] = controller[address & 0x0001];
         } else if (address >= 0x8000 && address <= 0xFFFF) {
             cartridge.cpuWrite(address, data);
@@ -81,8 +103,9 @@ public class CPUBus {
             data = ppu.cpuRead(address & 0x0007, readOnly);
         } else if (address >= 0x4016 && address <= 0x4017) {
             // 手柄
-            data = (byte) (0x40 | ((controllerState[address & 0x0001] & 0x80) > 0 ? 1 : 0));
-            controllerState[address & 0x0001] <<= 1;
+//            data = (byte) (0x40 | ((controllerState[address & 0x0001] & 0x80) > 0 ? 1 : 0));
+//            controllerState[address & 0x0001] <<= 1;
+            data = joypad1.read();
         } else if (address >= 0x8000 && address <= 0xFFFF) {
             data = cartridge.cpuRead(address);
         }
@@ -133,7 +156,32 @@ public class CPUBus {
 
         // PPU 的运行速度是 CPU 的3倍， 同步时钟周期
         if (cycles % 3 == 0) {
-            cpu.clock();
+            if (!isDMAStart) {
+                cpu.clock();
+            } else {
+                // DMA必须从CPU的偶数始终周期开始
+                if (isDMACanStart) {
+                    // 开始DMA
+                    if (cycles % 2 == 0) {
+                        // 偶数时钟周期读
+                        dmaData = read(dmaPage << 8 | dmaOffset);
+                    } else {
+                        // 奇数时钟周期写
+                       ppu.oam[dmaOffset & 0x00FF] = dmaData;
+                       dmaOffset++;
+
+                       if (dmaOffset == 0x00) {
+                           isDMAStart = false;
+                           isDMACanStart = false;
+                       }
+                    }
+                } else {
+                    // 等待CPU的始终周期，下一周期为偶数时DMA才能开始
+                    if (cycles % 2 == 1) {
+                        isDMACanStart = true;
+                    }
+                }
+            }
         }
 
         if (ppu.nmi) {

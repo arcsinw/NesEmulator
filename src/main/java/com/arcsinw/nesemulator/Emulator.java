@@ -2,8 +2,10 @@ package com.arcsinw.nesemulator;
 
 import com.arcsinw.nesemulator.ui.AboutDialog;
 import com.arcsinw.nesemulator.ui.NameTableFrame;
+import com.arcsinw.nesemulator.ui.ObjectAttributeMemoryFrame;
 import com.arcsinw.nesemulator.ui.PatternTableFrame;
 
+import javax.swing.*;
 import java.awt.*;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
@@ -13,6 +15,7 @@ import java.awt.image.BufferedImage;
 import java.awt.image.DataBufferInt;
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.HashMap;
 
 public class Emulator extends Frame {
     private static CPU cpu = new CPU();
@@ -44,14 +47,19 @@ public class Emulator extends Frame {
         {
             Menu debugMenu = new Menu("调试");
             {
-                MenuItem ptMenuItem = new MenuItem("Pattern Table");
-                ptMenuItem.addActionListener(e -> showPatternTableFrame());
-                debugMenu.add(ptMenuItem);
+                MenuItem patternTableMenuItem = new MenuItem("Pattern Table");
+                patternTableMenuItem.addActionListener(e -> showPatternTableFrame());
+                debugMenu.add(patternTableMenuItem);
             }
             {
-                MenuItem ntMenuItem = new MenuItem("Name Table");
-                ntMenuItem.addActionListener(e -> showNameTableFrame());
-                debugMenu.add(ntMenuItem);
+                MenuItem nameTableMenuItem = new MenuItem("Name Table");
+                nameTableMenuItem.addActionListener(e -> showNameTableFrame());
+                debugMenu.add(nameTableMenuItem);
+            }
+            {
+                MenuItem oamMenuItem = new MenuItem("Object Attribute Memory");
+                oamMenuItem.addActionListener(e -> showOAMFrame());
+                debugMenu.add(oamMenuItem);
             }
             menuBar.add(debugMenu);
         }
@@ -83,10 +91,23 @@ public class Emulator extends Frame {
         }
     };
 
-    private final int[] KEY_MAPPING = {
-            // A B Select Start Up Down Left Right
-            KeyEvent.VK_J, KeyEvent.VK_K, KeyEvent.VK_SHIFT, KeyEvent.VK_ENTER, KeyEvent.VK_W, KeyEvent.VK_S, KeyEvent.VK_A, KeyEvent.VK_D
+    private final HashMap<Integer, Joypad.ButtonFlag> KEY_MAPPING = new HashMap() {
+        {
+            put(KeyEvent.VK_J, Joypad.ButtonFlag.A);
+            put(KeyEvent.VK_K, Joypad.ButtonFlag.B);
+            put(KeyEvent.VK_SHIFT, Joypad.ButtonFlag.Select);
+            put(KeyEvent.VK_ENTER, Joypad.ButtonFlag.Start);
+            put(KeyEvent.VK_W, Joypad.ButtonFlag.Up);
+            put(KeyEvent.VK_S, Joypad.ButtonFlag.Down);
+            put(KeyEvent.VK_A, Joypad.ButtonFlag.Left);
+            put(KeyEvent.VK_D, Joypad.ButtonFlag.Right);
+        }
     };
+
+//    private final int[] KEY_MAPPING = {
+//            // A B Select Start Up Down Left Right
+//            KeyEvent.VK_J, KeyEvent.VK_K, KeyEvent.VK_SHIFT, KeyEvent.VK_ENTER, KeyEvent.VK_W, KeyEvent.VK_S, KeyEvent.VK_A, KeyEvent.VK_D
+//    };
 
     public Emulator() {
         setTitle("NesEmulator");
@@ -96,7 +117,6 @@ public class Emulator extends Frame {
 
         panel.setPreferredSize(new Dimension(SCREEN_WIDTH * SCREEN_RATIO, SCREEN_HEIGHT * SCREEN_RATIO));
         add(panel);
-
         pack();
 
         addWindowListener(new WindowAdapter() {
@@ -111,23 +131,26 @@ public class Emulator extends Frame {
             @Override
             public void keyPressed(KeyEvent e) {
                 int keyCode = e.getKeyCode();
-                for (int i = 0; i < 8; i++) {
-                    if (keyCode == KEY_MAPPING[i]) {
-                        cpuBus.controller[0] |= (byte)(1 << (7 - i));
-                        System.out.println(String.format("click: 0x%02X", cpuBus.controller[0]));
-                    }
+
+                if (KEY_MAPPING.containsKey(e.getKeyCode())) {
+                    cpuBus.joypad1.setButton(KEY_MAPPING.get(keyCode), 1);
                 }
             }
 
             @Override
             public void keyReleased(KeyEvent e) {
                 int keyCode = e.getKeyCode();
-                for (int i = 0; i < 8; i++) {
-                    if (keyCode == KEY_MAPPING[i]) {
-                        cpuBus.controller[0] &= (byte)(~(1 << (7 - i)));
-                        System.out.println(String.format("released: 0x%02X", cpuBus.controller[0]));
-                    }
+
+                if (KEY_MAPPING.containsKey(e.getKeyCode())) {
+                    cpuBus.joypad1.setButton(KEY_MAPPING.get(keyCode), 0);
                 }
+//                int keyCode = e.getKeyCode();
+//                for (int i = 0; i < 8; i++) {
+//                    if (keyCode == KEY_MAPPING[i]) {
+//                        cpuBus.controller[0] &= (byte)(~(1 << (7 - i)));
+//                        System.out.println(String.format("released: 0x%02X", cpuBus.controller[0]));
+//                    }
+//                }
             }
         });
 
@@ -152,12 +175,11 @@ public class Emulator extends Frame {
         int line = 0;
         cpuBus.reset();
 
+        Timer timer = new Timer(1000, arg -> emulator.displayNameTable());
+        timer.start();
+
         while (line++ >= 0 && true) {
             cpuBus.clock();
-
-            if (line >= 400000) {
-                emulator.displayNameTable();
-            }
         }
     }
 
@@ -184,6 +206,12 @@ public class Emulator extends Frame {
         if (cartridge != null) {
             NameTableFrame patternTableFrame = new NameTableFrame(ppu);
             patternTableFrame.displayNameTable();
+        }
+    }
+
+    public void showOAMFrame() {
+        if (cartridge != null) {
+            ObjectAttributeMemoryFrame oamFrame = new ObjectAttributeMemoryFrame(ppu);
         }
     }
 
@@ -303,7 +331,7 @@ public class Emulator extends Frame {
     }
 
     public void displayNameTable() {
-        int[] imageData = ((DataBufferInt)image.getRaster().getDataBuffer()).getData();
+        int[] imageData = ((DataBufferInt) image.getRaster().getDataBuffer()).getData();
 
         /**
          * 调色板 共32种颜色
@@ -335,7 +363,7 @@ public class Emulator extends Frame {
             for (int j = 0; j < 960; j++) {
                 int s = (ppu.ppuRead(0x2000 + 0x0400 * i + j) & 0x00FF) * 16;
 //                int s = (nameTable[i][j] & 0x00FF) * 16;
-                System.arraycopy(patternTable[1], s, nameTableColorMap[i], j * 16, 16);
+                System.arraycopy(patternTable[0], s, nameTableColorMap[i], j * 16, 16);
             }
         }
 
@@ -373,32 +401,31 @@ public class Emulator extends Frame {
 
                 for (int k = 0; k < 64; k++) {  // 像素点
                     // bit 0
-                    byte lo = (byte)((tileData[k / 8] >> (7 - k % 8)) & 0x01);
+                    byte lo = (byte) ((tileData[k / 8] >> (7 - k % 8)) & 0x01);
 
                     // bit 1
-                    byte hi = (byte)(((tileData[k / 8 + 8] >> (7 - k % 8)) & 0x01) << 1);
+                    byte hi = (byte) (((tileData[k / 8 + 8] >> (7 - k % 8)) & 0x01) << 1);
 
-                    byte color = (byte)(lo | hi | (((colorByte >>> ((tileOffset) * 2) & 0x03) << 2)));
+                    byte color = (byte) (lo | hi | (((colorByte >>> ((tileOffset) * 2) & 0x03) << 2)));
 
                     imageColor[i][j][k] = color;
                 }
             }
         }
 
-        for (int p = 0; p < 2; p++) {
-            for (int k = 0; k < 960; k++) { // tile
-                int startRow = (k / 32) * 8;
-                int startCol = (k % 32) * 8;
-                for (int i = 0; i < 64; i++) { // 像素
-                    // 256x240的图片
+        for (int k = 0; k < 960; k++) { // tile
+            int startRow = (k / 32) * 8;
+            int startCol = (k % 32) * 8;
+            for (int i = 0; i < 64; i++) { // 像素
+                // 256x240的图片
 //                    System.out.println(String.format("% 3d % 3d % 3d", k, startCol + i % 8, startRow + i / 8));
 //                    image.setRGB(startCol + i % 8, startRow + i / 8, fromIndex(palette[imageColor[p][k][i]]).getRGB());
-                    int x = startCol + i % 8;
-                    int y = startRow + i / 8;
-                    imageData[y * 256 + x] =  fromIndex(palette[imageColor[p][k][i]]).getRGB();
-                }
+                int x = startCol + i % 8;
+                int y = startRow + i / 8;
+                imageData[y * 256 + x] = fromIndex(palette[imageColor[0][k][i]]).getRGB();
             }
         }
+
 
         Graphics graphics = this.panel.getGraphics();
         graphics.drawImage(image,

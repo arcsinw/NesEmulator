@@ -3,6 +3,7 @@ package com.arcsinw.nesemulator.ui;
 import com.arcsinw.nesemulator.ColorPalette;
 import com.arcsinw.nesemulator.PPU;
 
+import javax.swing.*;
 import java.awt.*;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
@@ -43,6 +44,9 @@ public class NameTableFrame extends Frame {
                 dispose();
             }
         });
+
+        Timer timer = new Timer(1000, arg -> displayNameTable());
+        timer.start();
 
         setVisible(true);
 

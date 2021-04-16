@@ -9,17 +9,15 @@ public class InstructionEnumGenerator {
     /**
      * BRK_Implied("BRK", 1, 7, 0x00, AddressingMode.Implied) {
      *             @Override
-     *             public void operation(CPU cpu) {
-     *                 cpu.IMP();
-     *                 cpu.BRK();
+     *             public int operation(CPU cpu) {
+     *                 return cpu.IMP() + cpu.BRK();
      *             }
      *         },
      */
     private static final String template = "%s_%s(\"%s\", %d, %d, 0x%02X, %s) {\n" +
             "    @Override\n" +
-            "    public void operation(CPU cpu) {\n" +
-            "        cpu.%s();\n" +
-            "        cpu.%s();\n" +
+            "    public int operation(CPU cpu) {\n" +
+            "        return cpu.%s() + cpu.%s();\n" +
             "    }\n" +
             "},\n";
 
@@ -51,7 +49,7 @@ public class InstructionEnumGenerator {
         for (int i = 0; i < instructionSet.length; i++) {
             String instructionName = instructionSet[i];
 
-            if (instructionName.equals("UNK")) continue;
+            if (instructionName.equals("UNK") | instructionName.startsWith("*")) continue;
 
             CPU.AddressingMode addressingMode = CPU.ADDRESSING_MODE_TABLE[CPU.INSTRUCTION_ADDRESSING_MODE[i]];
 
