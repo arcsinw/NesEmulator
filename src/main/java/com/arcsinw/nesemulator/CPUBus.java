@@ -103,8 +103,6 @@ public class CPUBus {
             data = ppu.cpuRead(address & 0x0007, readOnly);
         } else if (address >= 0x4016 && address <= 0x4017) {
             // 手柄
-//            data = (byte) (0x40 | ((controllerState[address & 0x0001] & 0x80) > 0 ? 1 : 0));
-//            controllerState[address & 0x0001] <<= 1;
             data = joypad1.read();
         } else if (address >= 0x8000 && address <= 0xFFFF) {
             data = cartridge.cpuRead(address);
@@ -127,8 +125,7 @@ public class CPUBus {
             data = ppu.cpuRead(address & 0x0007, false);
         } else if (address >= 0x4016 && address <= 0x4017) {
             // 手柄
-            data = (byte) ((controllerState[address & 0x0001] & 0x80) > 0 ? 1 : 0);
-            controllerState[address & 0x0001] <<= 1;
+            data = joypad1.read();
         } else if (address >= 0x8000 && address <= 0xFFFF) {
             // PRG ROM
             data = cartridge.cpuRead(address);

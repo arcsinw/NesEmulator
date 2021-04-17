@@ -161,10 +161,10 @@ public class Emulator extends Frame {
 
     public static void main(String[] args) throws IOException {
         Emulator emulator = new Emulator();
-        String romPath = "/nestest.nes";
+//        String romPath = "/nestest.nes";
 //        String romPath = "/Donkey Kong.nes";
 //        String romPath = "/896.nes";
-//        String romPath = "/BattleCity.nes";
+        String romPath = "/BattleCity.nes";
         cartridge = new Cartridge(romPath);
         System.out.println(cartridge.header);
 
@@ -363,7 +363,7 @@ public class Emulator extends Frame {
             for (int j = 0; j < 960; j++) {
                 int s = (ppu.ppuRead(0x2000 + 0x0400 * i + j) & 0x00FF) * 16;
 //                int s = (nameTable[i][j] & 0x00FF) * 16;
-                System.arraycopy(patternTable[0], s, nameTableColorMap[i], j * 16, 16);
+                System.arraycopy(patternTable[1], s, nameTableColorMap[i], j * 16, 16);
             }
         }
 

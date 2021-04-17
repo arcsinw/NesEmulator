@@ -9,11 +9,13 @@ import java.awt.event.KeyEvent;
 public class Joypad {
 
     /**
-     * 8位 每位代表一个按键的状态（1 按下）A B Select Start Up Down Left Right
+     * 8位 每位代表一个按键的状态（1 按下）
      */
-    private byte controller;
+    private byte controller = 0;
 
     private int index = 0;
+
+    private boolean logging = true;
 
     enum ButtonFlag {
         Right(1 << 7),
@@ -33,6 +35,10 @@ public class Joypad {
     }
 
     public void setButton(ButtonFlag flag, int value) {
+        if (logging) {
+            System.out.println(String.format("Set button %s to %d", flag.toString(), value));
+        }
+
         if (value == 0) {
             controller &= (~flag.mask);
         } else {
@@ -50,11 +56,24 @@ public class Joypad {
 
             }
         }
+
+        if (logging) {
+            System.out.println(String.format("Write 0x4016 to %02X", data));
+        }
     }
 
+    /**
+     * 按键读出的顺序 A B Select Start Up Down Left Right
+     * @return
+     */
     public byte read() {
         byte data =  (byte) (0x40 | ((controller & (1 << index)) != 0 ? 1 : 0));
         index = (index + 1) % 8;
+
+        if (logging) {
+            System.out.println(String.format("Read 0x4016  data: %02X index: %d", data, index));
+        }
+
         return data;
     }
 }

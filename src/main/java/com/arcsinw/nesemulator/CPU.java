@@ -26,7 +26,7 @@ public class CPU {
 
     // debug only
     int clockCount = 0;
-    boolean logging = true;
+    boolean logging = false;
 
     // endregion
 
@@ -1174,7 +1174,7 @@ public class CPU {
         private final static Instruction[] values = Instruction.values();
 
         public static Instruction fromCode(int code) {
-            Optional<Instruction> instruction = Arrays.stream(values).filter(x -> x.operationCode == code).parallel().findFirst();
+            Optional<Instruction> instruction = Arrays.stream(values).filter(x -> x.operationCode == code).findFirst();
             return instruction.isPresent() ? instruction.get() : NOP_Implied;
         }
     }
