@@ -161,8 +161,8 @@ public class Emulator extends Frame {
 
     public static void main(String[] args) throws IOException {
         Emulator emulator = new Emulator();
-        String romPath = "/nestest.nes";
-//        String romPath = "/Donkey Kong.nes";
+//        String romPath = "/nestest.nes";
+        String romPath = "/Donkey Kong.nes";
 //        String romPath = "/896.nes";
 //        String romPath = "/BattleCity.nes";
         cartridge = new Cartridge(romPath);
@@ -334,11 +334,6 @@ public class Emulator extends Frame {
         int[] imageData = ((DataBufferInt) image.getRaster().getDataBuffer()).getData();
 
         /**
-         * 调色板 共32种颜色
-         */
-        byte[] palette = ppu.getPalette();
-
-        /**
          * 2KB [2][1024]
          * 每个 8x8的 Tile 使用1字节来索引，共 32*30=960个Tile 使用960字节
          * 剩下的64字节是Attribute Table 每个字节控制16个Tile的颜色，每4个田字格Tile 共用 2bit 作为颜色的前两位
@@ -418,16 +413,12 @@ public class Emulator extends Frame {
             int startRow = (k / 32) * 8;
             int startCol = (k % 32) * 8;
             for (int i = 0; i < 64; i++) { // 像素
-                // 256x240的图片
-//                    System.out.println(String.format("% 3d % 3d % 3d", k, startCol + i % 8, startRow + i / 8));
-//                    image.setRGB(startCol + i % 8, startRow + i / 8, fromIndex(palette[imageColor[p][k][i]]).getRGB());
                 int x = startCol + i % 8;
                 int y = startRow + i / 8;
                 byte color = ppu.ppuRead(0x3F00 + imageColor[0][k][i]);
                 imageData[y * 256 + x] = fromIndex(color).getRGB();
             }
         }
-
 
         Graphics graphics = this.panel.getGraphics();
         graphics.drawImage(image,

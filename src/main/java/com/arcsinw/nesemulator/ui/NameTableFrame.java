@@ -71,7 +71,7 @@ public class NameTableFrame extends Frame {
          * 每个 8x8的 Tile 使用1字节来索引，共 32*30=960个Tile 使用960字节
          * 剩下的64字节是Attribute Table 每个字节控制16个Tile的颜色，每4个田字格Tile 共用 2bit 作为颜色的前两位
          */
-//        byte[][] nameTable = ppu.getNameTable();
+        byte[][] nameTable = ppu.getNameTable();
 
 
         /**
@@ -90,15 +90,15 @@ public class NameTableFrame extends Frame {
         // 填充 nameTableColorMap
         for (int i = 0; i < 2; i++) {
             for (int j = 0; j < 960; j++) {
-                int s = (ppu.ppuRead(0x2000 + 0x0400 * i + j) & 0x00FF) * 16;
-//                int s = (nameTable[i][j] & 0x00FF) * 16;
+//                int s = (ppu.ppuRead(0x2000 + 0x0400 * i + j) & 0x00FF) * 16;
+                int s = (nameTable[i][j] & 0x00FF) * 16;
                 int backgroundAddress = ppu.getPpuCtrl(PPU.PPUCtrl.BackgroundSelect);
                 System.arraycopy(patternTable[backgroundAddress], s, nameTableColorMap[i], j * 16, 16);
             }
         }
 
         /**
-         * 2 Background 和 Sprite
+         * 2 个 Name table
          * 960 每个Name Table有 960个 tile
          * 64 每个 Tile 8x8 共 64个像素点
          * 每个像素点的颜色 使用 4bit来表示（实际上是索引了Palettes）
@@ -108,7 +108,7 @@ public class NameTableFrame extends Frame {
 
         for (int i = 0; i < 2; i++) {
             // 读最后64字节作为Attribute Table，1字节控制16个tile
-//            byte[] attributeTable = Arrays.copyOfRange(nameTable[i], 960, 1024);
+            byte[] attributeTable = Arrays.copyOfRange(nameTable[i], 960, 1024);
 
             for (int j = 0; j < 960; j++) { // tile
                 // 读 16 字节
@@ -120,8 +120,8 @@ public class NameTableFrame extends Frame {
                 // 4tile x 4tile 的大Tile id
                 int bigTileId = (row / 4) * 8 + col / 4;
 
-                byte colorByte = ppu.ppuRead(0x2000 + 0x0400 * i + 960 + bigTileId);
-//                byte colorByte =  attributeTable[bigTileId];
+//                byte colorByte = ppu.ppuRead(0x2000 + 0x0400 * i + 960 + bigTileId);
+                byte colorByte =  attributeTable[bigTileId];
 
                 int bigTileLeftTopRow = (bigTileId / 8) * 4;
                 int bigTileLeftTopCol = (bigTileId % 8) * 4;
@@ -148,8 +148,6 @@ public class NameTableFrame extends Frame {
                 int startRow = (k / 32) * 8;
                 int startCol = (k % 32) * 8;
                 for (int i = 0; i < 64; i++) { // 像素
-                    // 256x240的图片
-//                    System.out.println(String.format("% 3d % 3d % 3d", k, startCol + i % 8, startRow + i / 8));
                     byte color = ppu.ppuRead(0x3F00 + imageColor[p][k][i]);
                     image.setRGB(startCol + i % 8, startRow + i / 8, fromIndex(color).getRGB());
                 }

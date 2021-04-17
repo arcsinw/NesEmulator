@@ -308,7 +308,8 @@ public class PPU {
         byte fineY = 0;
     }
 
-    private LoopyRegister loopyRegister = new LoopyRegister();
+    private LoopyRegister vramAddress = new LoopyRegister();
+    private LoopyRegister tmpVramAddress = new LoopyRegister();
 
     /**
      * 卡带
@@ -484,7 +485,6 @@ public class PPU {
 
         if (address >= 0x0000 && address <= 0x1FFF) {
             // Pattern table
-//            cartridge.ppuWrite(address, data);
             patternTable[(address & 0x1000) >>> 12][address & 0x0FFF] = data;
         }
         if (address >= 0x2000 && address <= 0x3EFF) {
@@ -519,12 +519,8 @@ public class PPU {
         else if (address >= 0x3F00 && address <= 0x3FFF) {
             // Palettes 真实地址 0x3F00 - 0x3F1F 剩下的是Mirrors
             address &= 0x001F;  // % 32
-//            if (address == 0x0010) address = 0x0000;
-//            if (address == 0x0014) address = 0x0004;
-//            if (address == 0x0018) address = 0x0008;
-//            if (address == 0x001C) address = 0x000C;
-//
-            if (address == 0x10 || address == 0x0014 || address == 0x0018 || address == 0x001C) {
+
+            if (address == 0x0010 || address == 0x0014 || address == 0x0018 || address == 0x001C) {
                 palette[address - 0x10] = data;
             }
 
@@ -538,7 +534,6 @@ public class PPU {
 
         if (address >= 0x0000 && address <= 0x1FFF) {
             // Pattern table
-//            data = cartridge.ppuRead(address);
             data = patternTable[(address & 0x1000) >> 12][address & 0x0FFF];
         }
         if (address >= 0x2000 && address <= 0x3EFF) {
