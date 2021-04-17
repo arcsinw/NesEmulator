@@ -15,7 +15,7 @@ public class Joypad {
 
     private int index = 0;
 
-    private boolean logging = true;
+    private boolean logging = false;
 
     enum ButtonFlag {
         Right(1 << 7),

@@ -161,10 +161,10 @@ public class Emulator extends Frame {
 
     public static void main(String[] args) throws IOException {
         Emulator emulator = new Emulator();
-//        String romPath = "/nestest.nes";
+        String romPath = "/nestest.nes";
 //        String romPath = "/Donkey Kong.nes";
 //        String romPath = "/896.nes";
-        String romPath = "/BattleCity.nes";
+//        String romPath = "/BattleCity.nes";
         cartridge = new Cartridge(romPath);
         System.out.println(cartridge.header);
 
@@ -343,7 +343,7 @@ public class Emulator extends Frame {
          * 每个 8x8的 Tile 使用1字节来索引，共 32*30=960个Tile 使用960字节
          * 剩下的64字节是Attribute Table 每个字节控制16个Tile的颜色，每4个田字格Tile 共用 2bit 作为颜色的前两位
          */
-//        byte[][] nameTable = ppu.getNameTable();
+        byte[][] nameTable = ppu.getNameTable();
 
         /**
          * 共8K
@@ -361,9 +361,10 @@ public class Emulator extends Frame {
         // 填充 nameTableColorMap
         for (int i = 0; i < 2; i++) {
             for (int j = 0; j < 960; j++) {
-                int s = (ppu.ppuRead(0x2000 + 0x0400 * i + j) & 0x00FF) * 16;
-//                int s = (nameTable[i][j] & 0x00FF) * 16;
-                System.arraycopy(patternTable[1], s, nameTableColorMap[i], j * 16, 16);
+//                int s = (ppu.ppuRead(0x2000 + 0x0400 * i + j) & 0x00FF) * 16;
+                int backgroundAddress = ppu.getPpuCtrl(PPU.PPUCtrl.BackgroundSelect);
+                int s = (nameTable[i][j] & 0x00FF) * 16;
+                System.arraycopy(patternTable[backgroundAddress], s, nameTableColorMap[i], j * 16, 16);
             }
         }
 
@@ -378,20 +379,20 @@ public class Emulator extends Frame {
 
         for (int i = 0; i < 2; i++) {
             // 读最后64字节作为Attribute Table，1字节控制16个tile
-//            byte[] attributeTable = Arrays.copyOfRange(nameTable[i], 960, 1024);
+            byte[] attributeTable = Arrays.copyOfRange(nameTable[i], 960, 1024);
 
             for (int j = 0; j < 960; j++) { // tile
                 // 读 16 字节
                 byte[] tileData = Arrays.copyOfRange(nameTableColorMap[i], 16 * j, 16 * (j + 1));
 
                 int row = j / 32;
-                int col = j % 30;
+                int col = j % 32;
 
                 // 4tile x 4tile 的大Tile id
                 int bigTileId = (row / 4) * 8 + col / 4;
 
-                byte colorByte = ppu.ppuRead(0x2000 + 0x0400 * i + 960 + bigTileId);
-//                byte colorByte =  attributeTable[bigTileId];
+//                byte colorByte = ppu.ppuRead(0x2000 + 0x0400 * i + 960 + bigTileId);
+                byte colorByte =  attributeTable[bigTileId];
 
                 int bigTileLeftTopRow = (bigTileId / 8) * 4;
                 int bigTileLeftTopCol = (bigTileId % 8) * 4;
@@ -422,7 +423,8 @@ public class Emulator extends Frame {
 //                    image.setRGB(startCol + i % 8, startRow + i / 8, fromIndex(palette[imageColor[p][k][i]]).getRGB());
                 int x = startCol + i % 8;
                 int y = startRow + i / 8;
-                imageData[y * 256 + x] = fromIndex(palette[imageColor[0][k][i]]).getRGB();
+                byte color = ppu.ppuRead(0x3F00 + imageColor[0][k][i]);
+                imageData[y * 256 + x] = fromIndex(color).getRGB();
             }
         }
 

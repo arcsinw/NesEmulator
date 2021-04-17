@@ -2,6 +2,8 @@ package com.arcsinw.nesemulator;
 
 
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -1171,11 +1173,24 @@ public class CPU {
             this.addressingMode = addressingMode;
         }
 
+        private static Map<Integer, Instruction> cache = new HashMap<>();
         private final static Instruction[] values = Instruction.values();
 
         public static Instruction fromCode(int code) {
-            Optional<Instruction> instruction = Arrays.stream(values).filter(x -> x.operationCode == code).findFirst();
-            return instruction.isPresent() ? instruction.get() : NOP_Implied;
+            if (cache.containsKey(code)) {
+                return cache.get(code);
+            }
+
+            for (Instruction instruction : values) {
+                if (instruction.operationCode == code) {
+                    cache.put(code, instruction);
+                    return instruction;
+                }
+            }
+
+//            Optional<Instruction> instruction = Arrays.stream(values).filter(x -> x.operationCode == code).findFirst();
+//            return instruction.isPresent() ? instruction.get() : NOP_Implied;
+            return NOP_Implied;
         }
     }
     // endregion
