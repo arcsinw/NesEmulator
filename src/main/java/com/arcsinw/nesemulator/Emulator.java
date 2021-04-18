@@ -23,7 +23,7 @@ public class Emulator extends Frame {
     private static CPUBus cpuBus = new CPUBus();
 
     private static Cartridge cartridge;
-    private BufferedImage image = new BufferedImage(32 * 8, 30 * 8, BufferedImage.TYPE_INT_RGB);
+    private BufferedImage image = new BufferedImage(256, 240, BufferedImage.TYPE_INT_RGB);
 
 
     private static final int SCREEN_WIDTH = 256;
@@ -86,7 +86,7 @@ public class Emulator extends Frame {
         @Override
         public void paint(Graphics g) {
             if (cartridge != null) {
-                displayNameTable();
+                display();
             }
         }
     };
@@ -162,8 +162,9 @@ public class Emulator extends Frame {
     public static void main(String[] args) throws IOException {
         Emulator emulator = new Emulator();
 //        String romPath = "/nestest.nes";
-        String romPath = "/Donkey Kong.nes";
-//        String romPath = "/896.nes";
+//        String romPath = "/Donkey Kong.nes";
+        String romPath = "/896.nes";
+//        String romPath = "/IceClimber.nes";
 //        String romPath = "/BattleCity.nes";
         cartridge = new Cartridge(romPath);
         System.out.println(cartridge.header);
@@ -175,7 +176,7 @@ public class Emulator extends Frame {
         int line = 0;
         cpuBus.reset();
 
-        Timer timer = new Timer(1000, arg -> emulator.displayNameTable());
+        Timer timer = new Timer(1000, arg -> emulator.display());
         timer.start();
 
         while (line++ >= 0 && true) {
@@ -323,10 +324,6 @@ public class Emulator extends Frame {
     }
 
     private Color fromIndex(byte index) {
-//        palette = new byte[] {
-//                0x22, 0x29, 0x1A, 0x0F, 0x0F, 0x36, 0x17, 0x0F, 0x0F, 0x30, 0x21, 0x0F, 0x0F, 0x17, 0x17, 0x0F,
-//                0x22, 0x16, 0x27, 0x18, 0x0F, 0x1A, 0x30, 0x27, 0x0F, 0x16, 0x30, 0x27, 0x0F, 0x0F, 0x36, 0x17
-//        };
         return fromRGB(ColorPalette.COLOR_PALETTE[index]);
     }
 
@@ -389,8 +386,8 @@ public class Emulator extends Frame {
 //                byte colorByte = ppu.ppuRead(0x2000 + 0x0400 * i + 960 + bigTileId);
                 byte colorByte =  attributeTable[bigTileId];
 
-                int bigTileLeftTopRow = (bigTileId / 8) * 4;
-                int bigTileLeftTopCol = (bigTileId % 8) * 4;
+                int bigTileLeftTopRow = (bigTileId >>> 3) << 2;
+                int bigTileLeftTopCol = (bigTileId & 0x07) << 2;
 
                 // 小tile的offset id (0, 1, 2, 3)
                 int tileOffset = ((row - bigTileLeftTopRow) / 2) * 2 + (col - bigTileLeftTopCol) / 2;
@@ -417,6 +414,25 @@ public class Emulator extends Frame {
                 int y = startRow + i / 8;
                 byte color = ppu.ppuRead(0x3F00 + imageColor[0][k][i]);
                 imageData[y * 256 + x] = fromIndex(color).getRGB();
+            }
+        }
+
+        Graphics graphics = this.panel.getGraphics();
+        graphics.drawImage(image,
+                0, 0,
+                CONTENT_WIDTH * CONTENT_RATIO,
+                CONTENT_HEIGHT * CONTENT_RATIO,
+                this.panel);
+    }
+
+    public void display() {
+        byte[][] screen = ppu.getScreen();
+
+        int[] imageData = ((DataBufferInt) image.getRaster().getDataBuffer()).getData();
+
+        for (int row = 0; row < 240; row++) {
+            for (int col = 0; col < 256; col++) {
+                imageData[row * 256 + col] = fromIndex(screen[row][col]).getRGB();
             }
         }
 

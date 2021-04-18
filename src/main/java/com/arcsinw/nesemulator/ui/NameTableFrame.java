@@ -38,15 +38,17 @@ public class NameTableFrame extends Frame {
         add(panel);
         pack();
 
-        this.addWindowListener(new WindowAdapter() {
-            public void windowClosing(WindowEvent e) {
-                super.windowClosing(e);
-                dispose();
-            }
-        });
 
         Timer timer = new Timer(1000 / 30, arg -> displayNameTable());
         timer.start();
+
+        this.addWindowListener(new WindowAdapter() {
+            public void windowClosing(WindowEvent e) {
+                super.windowClosing(e);
+                timer.stop();
+                dispose();
+            }
+        });
 
         setVisible(true);
 
@@ -57,10 +59,6 @@ public class NameTableFrame extends Frame {
     }
 
     private Color fromIndex(byte index) {
-//        palette = new byte[] {
-//                0x22, 0x29, 0x1A, 0x0F, 0x0F, 0x36, 0x17, 0x0F, 0x0F, 0x30, 0x21, 0x0F, 0x0F, 0x17, 0x17, 0x0F,
-//                0x22, 0x16, 0x27, 0x18, 0x0F, 0x1A, 0x30, 0x27, 0x0F, 0x16, 0x30, 0x27, 0x0F, 0x0F, 0x36, 0x17
-//        };
         return fromRGB(ColorPalette.COLOR_PALETTE[index]);
     }
 
@@ -85,13 +83,13 @@ public class NameTableFrame extends Frame {
          * [2][960 * 16]
          * 960 个 tile，每个tile 占 16 字节
          */
-        byte[][] nameTableColorMap = new byte[2][960 * 16];
+        byte[][] nameTableColorMap = new byte[4][960 * 16];
 
         // 填充 nameTableColorMap
-        for (int i = 0; i < 2; i++) {
+        for (int i = 0; i < 4; i++) {
             for (int j = 0; j < 960; j++) {
-//                int s = (ppu.ppuRead(0x2000 + 0x0400 * i + j) & 0x00FF) * 16;
-                int s = (nameTable[i][j] & 0x00FF) * 16;
+                int s = (ppu.ppuRead(0x2000 + 0x0400 * i + j) & 0x00FF) * 16;
+//                int s = (nameTable[i][j] & 0x00FF) * 16;
                 int backgroundAddress = ppu.getPpuCtrl(PPU.PPUCtrl.BackgroundSelect);
                 System.arraycopy(patternTable[backgroundAddress], s, nameTableColorMap[i], j * 16, 16);
             }
@@ -104,27 +102,27 @@ public class NameTableFrame extends Frame {
          * 每个像素点的颜色 使用 4bit来表示（实际上是索引了Palettes）
          * 每个Tile使用了Pattern table的 16字节
          */
-        byte[][][] imageColor = new byte[2][960][64];
+        byte[][][] imageColor = new byte[4][960][64];
 
-        for (int i = 0; i < 2; i++) {
+        for (int i = 0; i < 4; i++) {
             // 读最后64字节作为Attribute Table，1字节控制16个tile
-            byte[] attributeTable = Arrays.copyOfRange(nameTable[i], 960, 1024);
+//            byte[] attributeTable = Arrays.copyOfRange(nameTable[i], 960, 1024);
 
             for (int j = 0; j < 960; j++) { // tile
                 // 读 16 字节
                 byte[] tileData = Arrays.copyOfRange(nameTableColorMap[i], 16 * j, 16 * (j + 1));
 
-                int row = j / 32;
+                int row = j >> 5;
                 int col = j % 32;
 
                 // 4tile x 4tile 的大Tile id
-                int bigTileId = (row / 4) * 8 + col / 4;
+                int bigTileId = ((row >> 2) << 3) + (col >> 2);
 
-//                byte colorByte = ppu.ppuRead(0x2000 + 0x0400 * i + 960 + bigTileId);
-                byte colorByte =  attributeTable[bigTileId];
+                byte colorByte = ppu.ppuRead(0x2000 + 0x0400 * i + 960 + bigTileId);
+//                byte colorByte =  attributeTable[bigTileId];
 
-                int bigTileLeftTopRow = (bigTileId / 8) * 4;
-                int bigTileLeftTopCol = (bigTileId % 8) * 4;
+                int bigTileLeftTopRow = (bigTileId >> 3) << 2;
+                int bigTileLeftTopCol = (bigTileId & 0x07) << 2;
 
                 // 小tile的offset id (0, 1, 2, 3)
                 int tileOffset = ((row - bigTileLeftTopRow) / 2) * 2 + (col - bigTileLeftTopCol) / 2;
@@ -143,7 +141,7 @@ public class NameTableFrame extends Frame {
             }
         }
 
-        for (int p = 0; p < 2; p++) {
+        for (int p = 0; p < 4; p++) {
             for (int k = 0; k < 960; k++) { // tile
                 int startRow = (k / 32) * 8;
                 int startCol = (k % 32) * 8;
@@ -153,9 +151,12 @@ public class NameTableFrame extends Frame {
                 }
             }
 
+            int x = (p % 2) * IMAGE_WIDTH * IMAGE_RATIO;
+            int y = (p / 2) * IMAGE_HEIGHT * IMAGE_RATIO;
+
             Graphics graphics = this.panel.getGraphics();
             graphics.drawImage(image,
-                    IMAGE_WIDTH * IMAGE_RATIO * p, 0,
+                    x, y,
                     IMAGE_WIDTH * IMAGE_RATIO,
                     IMAGE_HEIGHT * IMAGE_RATIO,
                     this.panel);

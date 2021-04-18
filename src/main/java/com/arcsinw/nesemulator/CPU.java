@@ -1294,7 +1294,7 @@ public class CPU {
         P = 0x00;
 
         setFlag(StatusFlag.U, 1);
-        setFlag(StatusFlag.I, 1); // 测试用
+//        setFlag(StatusFlag.I, 1); // 测试用
 
         PC = read16(0xFFFC);
 //        PC = 0xC000; // 调试nestest.nes
