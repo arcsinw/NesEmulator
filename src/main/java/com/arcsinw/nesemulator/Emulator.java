@@ -17,7 +17,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
 
-public class Emulator extends Frame {
+public class Emulator extends Frame implements PPU.FrameRenderCompletedEventListener {
     private static CPU cpu = new CPU();
     private static PPU ppu = new PPU();
     private static CPUBus cpuBus = new CPUBus();
@@ -25,14 +25,13 @@ public class Emulator extends Frame {
     private static Cartridge cartridge;
     private BufferedImage image = new BufferedImage(256, 240, BufferedImage.TYPE_INT_RGB);
 
-
     private static final int SCREEN_WIDTH = 256;
     private static final int SCREEN_HEIGHT = 240;
     private static final int SCREEN_RATIO = 3;
 
-    private static final int CONTENT_WIDTH = 128;
-    private static final int CONTENT_HEIGHT = 128;
-    private static final int CONTENT_RATIO = 6;
+    private static final int CONTENT_WIDTH = 256;
+    private static final int CONTENT_HEIGHT = 240;
+    private static final int CONTENT_RATIO = 3;
 
     private void addMenuBar() {
         MenuBar menuBar = new MenuBar();
@@ -82,14 +81,7 @@ public class Emulator extends Frame {
         setMenuBar(menuBar);
     }
 
-    private Panel panel = new Panel() {
-        @Override
-        public void paint(Graphics g) {
-            if (cartridge != null) {
-                display();
-            }
-        }
-    };
+    private Panel panel = new Panel();
 
     private final HashMap<Integer, Joypad.ButtonFlag> KEY_MAPPING = new HashMap() {
         {
@@ -104,15 +96,9 @@ public class Emulator extends Frame {
         }
     };
 
-//    private final int[] KEY_MAPPING = {
-//            // A B Select Start Up Down Left Right
-//            KeyEvent.VK_J, KeyEvent.VK_K, KeyEvent.VK_SHIFT, KeyEvent.VK_ENTER, KeyEvent.VK_W, KeyEvent.VK_S, KeyEvent.VK_A, KeyEvent.VK_D
-//    };
-
     public Emulator() {
         setTitle("NesEmulator");
         setBackground(Color.black);
-        setLayout(new FlowLayout());
         addMenuBar();
 
         panel.setPreferredSize(new Dimension(SCREEN_WIDTH * SCREEN_RATIO, SCREEN_HEIGHT * SCREEN_RATIO));
@@ -132,7 +118,7 @@ public class Emulator extends Frame {
             public void keyPressed(KeyEvent e) {
                 int keyCode = e.getKeyCode();
 
-                if (KEY_MAPPING.containsKey(e.getKeyCode())) {
+                if (KEY_MAPPING.containsKey(keyCode)) {
                     cpuBus.joypad1.setButton(KEY_MAPPING.get(keyCode), 1);
                 }
             }
@@ -141,16 +127,9 @@ public class Emulator extends Frame {
             public void keyReleased(KeyEvent e) {
                 int keyCode = e.getKeyCode();
 
-                if (KEY_MAPPING.containsKey(e.getKeyCode())) {
+                if (KEY_MAPPING.containsKey(keyCode)) {
                     cpuBus.joypad1.setButton(KEY_MAPPING.get(keyCode), 0);
                 }
-//                int keyCode = e.getKeyCode();
-//                for (int i = 0; i < 8; i++) {
-//                    if (keyCode == KEY_MAPPING[i]) {
-//                        cpuBus.controller[0] &= (byte)(~(1 << (7 - i)));
-//                        System.out.println(String.format("released: 0x%02X", cpuBus.controller[0]));
-//                    }
-//                }
             }
         });
 
@@ -162,12 +141,17 @@ public class Emulator extends Frame {
     public static void main(String[] args) throws IOException {
         Emulator emulator = new Emulator();
 //        String romPath = "/nestest.nes";
+//        String romPath = "/Pac-Man.nes";
 //        String romPath = "/Donkey Kong.nes";
         String romPath = "/896.nes";
+//        String romPath = "/palette_pal.nes";
+//        String romPath = "/ppu_2000_glitch.nes";
 //        String romPath = "/IceClimber.nes";
 //        String romPath = "/BattleCity.nes";
         cartridge = new Cartridge(romPath);
         System.out.println(cartridge.header);
+
+        ppu.addFrameRenderCompletedEventListener(emulator);
 
         cpuBus.setCpu(cpu);
         cpuBus.setPpu(ppu);
@@ -175,9 +159,6 @@ public class Emulator extends Frame {
 
         int line = 0;
         cpuBus.reset();
-
-        Timer timer = new Timer(1000, arg -> emulator.display());
-        timer.start();
 
         while (line++ >= 0 && true) {
             cpuBus.clock();
@@ -427,7 +408,6 @@ public class Emulator extends Frame {
 
     public void display() {
         byte[][] screen = ppu.getScreen();
-
         int[] imageData = ((DataBufferInt) image.getRaster().getDataBuffer()).getData();
 
         for (int row = 0; row < 240; row++) {
@@ -442,5 +422,10 @@ public class Emulator extends Frame {
                 CONTENT_WIDTH * CONTENT_RATIO,
                 CONTENT_HEIGHT * CONTENT_RATIO,
                 this.panel);
+    }
+
+    @Override
+    public void notifyFrameRenderCompleted() {
+        display();
     }
 }

@@ -1,5 +1,9 @@
 package com.arcsinw.nesemulator;
 
+import java.util.ArrayList;
+import java.util.EventListener;
+import java.util.EventObject;
+
 /**
  * Picture Process Unit
  * 型号是 2C02
@@ -253,6 +257,26 @@ public class PPU {
 
     // endregion
 
+    // region 帧渲染完成事件
+
+    public interface FrameRenderCompletedEventListener extends EventListener {
+        void notifyFrameRenderCompleted();
+    }
+
+    private ArrayList<FrameRenderCompletedEventListener> frameRenderCompletedEventListeners = new ArrayList<>();
+
+    public void addFrameRenderCompletedEventListener(FrameRenderCompletedEventListener listener) {
+        frameRenderCompletedEventListeners.add(listener);
+    }
+
+    public void notifyFrameRenderCompleted() {
+        for (FrameRenderCompletedEventListener l : frameRenderCompletedEventListeners) {
+            l.notifyFrameRenderCompleted();
+        }
+    }
+
+    // endregion
+
     /**
      * NES屏幕分辨率 256x240
      * 每个像素点使用 4 bit 作为颜色索引
@@ -320,11 +344,11 @@ public class PPU {
          */
         byte coarseY = 0;
         /**
-         * 1 bit
+         * 1 bit, 1 << 10
          */
         byte nameTableX = 0;
         /**
-         * 1 bit
+         * 1 bit, 1 << 11
          */
         byte nameTableY = 0;
         /**
@@ -397,8 +421,6 @@ public class PPU {
         return ppuRead(0x3F00 + (paletteId << 2) + pixelId);
     }
 
-    private boolean isScrollFirstWrite = true;
-
     /**
      * CPU 与 PPU之间的通信通过 0x2000 - 0x2007的 8个 寄存器 来实现
      * @param address 写入地址 16bit
@@ -448,23 +470,16 @@ public class PPU {
                         tmp.append(String.format(" %02X ", data));
                     }
 //                    tmpPpuAddress = (tmpPpuAddress & 0x00FF) | ((data << 8) & 0x0FFFF);
-                    tmpVramAddress.setValue((tmpVramAddress.getValue() & 0x00FF) | (((data & 0x3F) << 8) & 0x0FFFF));
+                    tmpVramAddress.setValue((tmpVramAddress.getValue() & 0x00FF) | ((data & 0x3F) << 8));
                     isFirstPpuAddress = false;
                 } else {
                     if (logging) {
                         tmp.append(String.format(" %02X ", data));
                     }
 //                    tmpPpuAddress = (tmpPpuAddress & 0xFF00) | (data & 0x00FF);
-                    tmpVramAddress.setValue((tmpVramAddress.getValue() & 0xFF00) + (data & 0x00FF));
+                    tmpVramAddress.setValue((tmpVramAddress.getValue() & 0xFFF00) | (data & 0x00FF));
 
-                    {
-                        vramAddress.fineY = tmpVramAddress.fineY;
-                        vramAddress.nameTableX = tmpVramAddress.nameTableX;
-                        vramAddress.nameTableY = tmpVramAddress.nameTableY;
-                        vramAddress.coarseX = tmpVramAddress.coarseX;
-                        vramAddress.coarseY = tmpVramAddress.coarseY;
-                    }
-
+                    vramAddress.setValue(tmpVramAddress.getValue());
                     isFirstPpuAddress = true;
                 }
                 break;
@@ -494,78 +509,51 @@ public class PPU {
      * @param address 数据地址
      * @return
      */
-    public byte cpuRead(int address, boolean readOnly) {
+    public byte cpuRead(int address) {
         byte data = 0x00;
 
-        if (readOnly) // for test
-        {
-            // Reading from PPU registers can affect their contents
-            // so this read only option is used for examining the
-            // state of the PPU without changing its state. This is
-            // really only used in debug mode.
-            switch (address)
-            {
-                case 0x0000:    // PPUCtrl
-                    data = ppuCtrl;
-                    break;
-                case 0x0001:    // PPUMask
-                    data = ppuMask;
-                    break;
-                case 0x0002:    // PPU Status
-                    // ppu status 只有前三位有效
-                    data = ppuStatus;
-                    break;
-                case 0x0003:    // OAM Address
-                    break;
-                case 0x0006:    // PPU Address
-                    break;
-                case 0x0007:    // PPU Data
-                    break;
-            }
-        }
-        else {
-            switch (address) {
-                // PPU Control
-                case 0x0000:
-                    break;
-                // PPU Mask
-                case 0x0001:
-                    break;
-                // PPU Status
-                case 0x0002:
-                    // ppu status 只有前三位有效
-                    data = (byte) ((ppuStatus & 0xE0) | (ppuDataBuffer & 0x1F));
-                    setPpuStatus(PPUStatus.VBlank, 0);
-                    isFirstPpuAddress = true;
-                    break;
-                // OAM Address
-                case 0x0003:
-                    break;
-                // OAM Data
-                case 0x0004:
-                    data = oam[oamAddress];
-                    break;
-                // PPU Address
-                case 0x0006:
-                    break;
-                // PPU Data
-                case 0x0007:
-                    // CPU 从 PPU读取数据 要慢一个 ppuRead
-                    data = ppuDataBuffer;
+        switch (address) {
+            // PPU Control
+            case 0x0000:
+                break;
+            // PPU Mask
+            case 0x0001:
+                break;
+            // PPU Status
+            case 0x0002:
+                // ppu status 只有前三位有效
+                data = (byte) ((ppuStatus & 0xE0) | (ppuDataBuffer & 0x1F));
+                setPpuStatus(PPUStatus.VBlank, 0);
+                isFirstPpuAddress = true;
+                break;
+            // OAM Address
+            case 0x0003:
+                break;
+            // OAM Data
+            case 0x0004:
+                data = oam[oamAddress];
+                break;
+            // PPU Address
+            case 0x0006:
+                break;
+            // PPU Data
+            case 0x0007:
+                // CPU 从 PPU读取数据 要慢一个 ppuRead
+                data = ppuDataBuffer;
 //                    ppuDataBuffer = ppuRead(tmpPpuAddress);
-                    ppuDataBuffer = ppuRead(vramAddress.getValue());
+                ppuDataBuffer = ppuRead(vramAddress.getValue());
 
-                    // 读取Palettes没有延迟
+                // 读取Palettes没有延迟
 //                    if (tmpPpuAddress >= 0x3F00) {
-                    if (vramAddress.getValue() >= 0x3F00) {
-                        data = ppuDataBuffer;
-                    }
+                if (vramAddress.getValue() >= 0x3F00) {
+                    data = ppuDataBuffer;
+                }
 
 //                    tmpPpuAddress += (getPpuCtrl(PPUCtrl.IncrementMode) == 0 ? 1 : 32);
-                    vramAddress.setValue(vramAddress.getValue() + (getPpuCtrl(PPUCtrl.IncrementMode) == 0 ? 1 : 32));
-                    break;
-            }
+                vramAddress.setValue(vramAddress.getValue() + (getPpuCtrl(PPUCtrl.IncrementMode) == 0 ? 1 : 32));
+                break;
         }
+
         return data;
     }
 
@@ -631,6 +619,7 @@ public class PPU {
 
         if (address >= 0x0000 && address <= 0x1FFF) {
             // Pattern table
+//            System.out.println(String.format("%04X", address));
             data = patternTable[(address & 0x1000) >> 12][address & 0x0FFF];
         }
         if (address >= 0x2000 && address <= 0x3EFF) {
@@ -693,17 +682,32 @@ public class PPU {
         return data;
     }
 
+    // region 背景滚动相关字段
+
     /**
-     * 扫描线编号
-     * -1 - 261
+     * 扫描线编号,1帧有262条扫描线
+     * 0 - 239 可见扫描线
+     * 240 post-render line
+     * 241 - 260 vertical blank lines
+     * 261 pre-render line
      */
     private int scanLine = 0;
 
     /**
-     * 每根扫描线有 341 cycles
+     * 每根扫描线有 341 cycles, 0 - 340
      * 每个cycle 渲染一个像素
+     * 0         空闲
+     * 1   - 256 加载tile数据
+     * 257 - 320 加载下一条扫描线的Sprite数据
+     * 321 - 336 加载下一条扫描线的前2个tile
+     * 337 - 340 加载两字节的Name table数据
      */
     private int cycles = 0;
+
+    /**
+     * 已渲染的帧数
+     */
+    private int frames = 0;
 
     public boolean nmi = false;
 
@@ -711,20 +715,35 @@ public class PPU {
     private byte nextBackgroundTileAttribute = 0x00;
 
     /**
-     * 下一个背景tile的Pattern 高8位
+     * 暂存下一个背景tile的Pattern 高8位
      */
     private byte nextBackgroundTilePatternHi = 0x00;
 
     /**
-     * 下一个背景tile的Pattern 低8位
+     * 暂存下一个背景tile的Pattern 低8位
      */
     private byte nextBackgroundTilePatternLo = 0x00;
 
-    private short backgroundPatternLoShifter = 0x0000;
+
+    /**
+     * 存储下一个背景tile的Pattern 高8位，每经过一个cycle，寄存器左移1位
+     */
     private short backgroundPatternHiShifter = 0x0000;
+
+    /**
+     * 存储下一个背景tile的Pattern 低8位，每经过一个cycle，寄存器左移1位
+     */
+    private short backgroundPatternLoShifter = 0x0000;
+
+
     private short backgroundAttributeLoShifter = 0x0000;
     private short backgroundAttributeHiShifter = 0x0000;
 
+    // endregion
+
+    /**
+     * 将扫描线上下一个tile的数据加载到 Shifter中
+     */
     public void loadBackgroundShifters() {
         backgroundPatternHiShifter = (short) ((backgroundPatternHiShifter & 0xFF00) | nextBackgroundTilePatternHi);
         backgroundPatternLoShifter = (short) ((backgroundPatternLoShifter & 0xFF00) | nextBackgroundTilePatternLo);
@@ -733,6 +752,9 @@ public class PPU {
         backgroundAttributeLoShifter = (short) ((backgroundAttributeLoShifter & 0xFF00) | ((nextBackgroundTileAttribute & 0x01) != 0 ? 0xFF : 0x00));
     }
 
+    /**
+     * 将所有的Shifter寄存器左移1位
+     */
     public void updateShifters() {
         if (getPpuMask(PPUMask.BackgroundEnable) != 0) {
             backgroundAttributeHiShifter <<= 1;
@@ -768,7 +790,7 @@ public class PPU {
 
                     // 修改当前的Name table
                     vramAddress.nameTableY = (byte) (1 - vramAddress.nameTableY);
-                } else if (vramAddress.coarseY == 31) {
+                } else if (vramAddress.coarseY > 29) {
                     vramAddress.coarseY = 0;
                 } else {
                     vramAddress.coarseY++;
@@ -794,37 +816,49 @@ public class PPU {
 
     /**
      * 参考http://wiki.nesdev.com/w/images/4/4f/Ppu.svg
-     * 262条扫描线 （0~261）或（-1~260）  (0~239)是可见扫描线
+     * 262条扫描线 （0~261）  (0~239)是可见扫描线
      * 每条扫描线341 cycles (0~340)
      */
     public void clock() {
-        // visible frame
-        if (scanLine >= -1 && scanLine < 240) {
-            if (scanLine == 0 && cycles == 0) {
-                cycles = 1;
-            }
+        System.out.println("Background: " + getPpuCtrl(PPUCtrl.BackgroundSelect));
 
-            if (scanLine == -1 && cycles == 1) {
-                setPpuStatus(PPUStatus.VBlank, 0);
-            }
+        // 可视区域，每个cycle更新1个像素
+        // 扫描线(0, 239) cycles(1, 256)
+        if (scanLine < 240 && cycles >= 1 && cycles <= 256) {
+            if (getPpuMask(PPUMask.BackgroundEnable) != 0) {
+                // 二进制中的 1 表明当前渲染的像素位置
+                short shifterMask = (short) (0x8000 >>> fineX);
 
-            // visible cycles
-//            if ((cycles >= 1 && cycles <= 256) || (cycles >= 321 && cycles <= 336)) {
-            if ((cycles >= 2 && cycles < 258) || (cycles >= 321 && cycles < 338)) {
+                byte colorBit0 = (byte) ((backgroundPatternLoShifter & shifterMask) != 0 ? 1 : 0);
+                byte colorBit1 = (byte) ((backgroundPatternHiShifter & shifterMask) != 0 ? 1 : 0);
+
+                byte colorId = (byte) (colorBit0 | (colorBit1 << 1));
+
+                byte colorBit2 = (byte) ((backgroundAttributeLoShifter & shifterMask) != 0 ? 1 : 0);
+                byte colorBit3 = (byte) ((backgroundAttributeHiShifter & shifterMask) != 0 ? 1 : 0);
+
+                byte paletteId = (byte) (colorBit2 | (colorBit3 << 1));
+
+                screen[scanLine][cycles - 1] = getColorFromPalette(paletteId, colorId);
+            }
+        }
+
+        // 8个cycle的循环
+        if ((scanLine < 240) || (scanLine == 261)) {
+            if ((cycles >= 1 && cycles <= 256) || (cycles >= 321 && cycles <= 336)) {
                 updateShifters();
 
+                // 8个cycle一个周期
                 // |NT byte|AT byte|   Lo  |hi  inc hori(v)|
                 // | 1 | 2 | 3 | 4 | 5 | 6 |   7   |   8   |
-//                switch (cycles % 8) {
-                switch ((cycles - 1) % 8) {
-                    case 0:
-                        // 读取后续8个像素的信息
+                switch (cycles % 8) {
+                    case 1:
                         loadBackgroundShifters();
 
-                        // 读取Name table
+                        // 加载Name table
                         nextBackgroundTileId = ppuRead(0x2000 + (vramAddress.getValue() & 0x0FFF));
                         break;
-                    case 2:
+                    case 3:
                         // 读取Attribute table中的1字节（Attribute table中1字节控制一个4x4tile 的大Tile的颜色）
                         // 通过nameTableX,Y 计算tile所在的Name table
                         // 通过coarseX,Y 计算tile所在的 4x4tile 的大Tile id
@@ -845,18 +879,17 @@ public class PPU {
 
                         nextBackgroundTileAttribute &= 0x03;
                         break;
-                    case 4:
+                    case 5:
                         // 读取Pattern table低字节
                         nextBackgroundTilePatternLo = ppuRead((getPpuCtrl(PPUCtrl.BackgroundSelect) * 0x1000) +
-                                nextBackgroundTileId * 16 + vramAddress.fineY);
+                                (nextBackgroundTileId << 4) + (vramAddress.fineY & 0x07));
                         break;
-                    case 6:
+                    case 7:
                         // 读取Pattern table高字节
                         nextBackgroundTilePatternHi = ppuRead((getPpuCtrl(PPUCtrl.BackgroundSelect) * 0x1000) +
-                                nextBackgroundTileId * 16 + vramAddress.fineY + 8);
+                                (nextBackgroundTileId << 4) + (vramAddress.fineY & 0x07) + 8);
                         break;
-
-                    case 7:
+                    case 0:
                         // increment horizontal of v
                         incrementScrollX();
                         break;
@@ -873,19 +906,22 @@ public class PPU {
                 loadBackgroundShifters();
                 transferAddressX();
             }
+        }
 
-            if (cycles == 338 || cycles == 340)
-            {
-                nextBackgroundTileId = ppuRead(0x2000 + (vramAddress.getValue() & 0x0FFF));
+        // pre-render scaneline, end of vblank
+        if (scanLine == 261) {
+            if (cycles == 1) {
+                setPpuStatus(PPUStatus.VBlank, 0);
+                setPpuStatus(PPUStatus.SpriteOverflow, 0);
+                setPpuStatus(PPUStatus.SpriteZeroHit, 0);
             }
-
-            if (scanLine == -1 && cycles >= 280 && cycles <= 304) {
+            else if (cycles >= 280 && cycles <= 304) {
                 transferAddressY();
             }
         }
 
         // Post-render line, do nothing
-        if (scanLine == 240) {        }
+        if (scanLine == 240) {}
 
         if (scanLine == 241 && cycles == 1) {
             setPpuStatus(PPUStatus.VBlank, 1);
@@ -896,32 +932,20 @@ public class PPU {
             }
         }
 
-        if (getPpuMask(PPUMask.BackgroundEnable) != 0) {
-            // 二进制中的 1 表明当前渲染的像素位置
-            short shifterMask = (short) (0x8000 >>> fineX);
-
-            byte colorBit0 = (byte) ((backgroundPatternLoShifter & shifterMask) != 0 ? 1 : 0);
-            byte colorBit1 = (byte) ((backgroundPatternHiShifter & shifterMask) != 0 ? 1 : 0);
-
-            byte colorId = (byte) (colorBit0 | (colorBit1 << 1));
-
-            byte colorBit2 = (byte) ((backgroundAttributeLoShifter & shifterMask) != 0 ? 1 : 0);
-            byte colorBit3 = (byte) ((backgroundAttributeHiShifter & shifterMask) != 0 ? 1 : 0);
-
-            byte paletteId = (byte) (colorBit2 | (colorBit3 << 1));
-
-            if (scanLine >= 0 && scanLine < 240 && cycles >= 1 && cycles < 256) {
-                screen[scanLine][cycles-1] = getColorFromPalette(paletteId, colorId);
-            }
+        if (cycles == 338 || cycles == 340) {
+            nextBackgroundTileId = ppuRead(0x2000 | (vramAddress.getValue() & 0x0FFF));
         }
 
         cycles++;
-        if (cycles >= 341) {
+        if (cycles > 340) {
             cycles = 0;
             scanLine++;
 
-            if (scanLine >= 261) {
-                scanLine = -1;
+            if (scanLine > 261) {
+                scanLine = 0;
+                frames++;
+
+                notifyFrameRenderCompleted();
             }
         }
     }
@@ -929,8 +953,9 @@ public class PPU {
     public void reset() {
         isFirstPpuAddress = true;
         ppuDataBuffer = 0x00;
-        scanLine = 0;
+        scanLine = 261;
         cycles = 0;
+        frames = 0;
 
         fineX = 0;
         nextBackgroundTileAttribute = 0x00;

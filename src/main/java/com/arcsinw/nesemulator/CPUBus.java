@@ -94,40 +94,21 @@ public class CPUBus {
      * @param address 数据地址
      * @return 8bit 数据
      */
-    public byte read(int address, boolean readOnly) {
-        byte data = 0x00;
-        if (address >= 0x0000 && address <= 0x1FFF) {
-            data = cpuRAM[address & 0x07FF];
-        } else if (address >= 0x2000 && address <= 0x3FFF) {
-            // 0x2000 - 0x2007 是PPU的寄存器，其余是mirror
-            data = ppu.cpuRead(address & 0x0007, readOnly);
-        } else if (address >= 0x4016 && address <= 0x4017) {
-            // 手柄
-            data = joypad1.read();
-        } else if (address >= 0x8000 && address <= 0xFFFF) {
-            data = cartridge.cpuRead(address);
-        }
-
-        return data;
-    }
-
-    /**
-     * 从总线读取数据
-     * @param address 数据地址
-     * @return 8bit 数据
-     */
     public byte read(int address) {
         byte data = 0x00;
         if (address >= 0x0000 && address <= 0x1FFF) {
             data = cpuRAM[address & 0x07FF];
         } else if (address >= 0x2000 && address <= 0x3FFF) {
             // 0x2000 - 0x2007 是PPU的寄存器，其余是mirror
-            data = ppu.cpuRead(address & 0x0007, false);
+            data = ppu.cpuRead(address & 0x0007);
         } else if (address >= 0x4016 && address <= 0x4017) {
             // 手柄
-            data = joypad1.read();
+            if (address == 0x4016) {
+                data = joypad1.read();
+            } else if (address == 0x4017) {
+                data = joypad2.read();
+            }
         } else if (address >= 0x8000 && address <= 0xFFFF) {
-            // PRG ROM
             data = cartridge.cpuRead(address);
         }
 
