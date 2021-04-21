@@ -5,7 +5,6 @@ import com.arcsinw.nesemulator.ui.NameTableFrame;
 import com.arcsinw.nesemulator.ui.ObjectAttributeMemoryFrame;
 import com.arcsinw.nesemulator.ui.PatternTableFrame;
 
-import javax.swing.*;
 import java.awt.*;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
@@ -87,7 +86,7 @@ public class Emulator extends Frame implements PPU.FrameRenderCompletedEventList
         {
             put(KeyEvent.VK_J, Joypad.ButtonFlag.A);
             put(KeyEvent.VK_K, Joypad.ButtonFlag.B);
-            put(KeyEvent.VK_SHIFT, Joypad.ButtonFlag.Select);
+            put(KeyEvent.VK_1, Joypad.ButtonFlag.Select);
             put(KeyEvent.VK_ENTER, Joypad.ButtonFlag.Start);
             put(KeyEvent.VK_W, Joypad.ButtonFlag.Up);
             put(KeyEvent.VK_S, Joypad.ButtonFlag.Down);

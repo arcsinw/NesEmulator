@@ -1,8 +1,6 @@
 package com.arcsinw.nesemulator;
 
 
-import java.util.Arrays;
-
 /**
  * CPU总线
  * 16bit 0x0000 ~ 0xFFFF 共 64KB
@@ -45,6 +43,7 @@ public class CPUBus {
 
 
     // region DMA
+
     private byte dmaPage = 0x00;
     private byte dmaOffset = 0x00;
     private byte dmaData = 0x00;
@@ -145,7 +144,8 @@ public class CPUBus {
                         dmaData = read(dmaPage << 8 | dmaOffset);
                     } else {
                         // 奇数时钟周期写
-                       ppu.oam[dmaOffset & 0x00FF] = dmaData;
+                       ppu.setOAMEntry(dmaOffset & 0x00FF, dmaData);
+//                       ppu.oam[dmaOffset & 0x00FF] = dmaData;
                        dmaOffset++;
 
                        if (dmaOffset == 0x00) {

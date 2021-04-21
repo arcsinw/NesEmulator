@@ -1,10 +1,8 @@
 package com.arcsinw.nesemulator;
 
 
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Optional;
 
 /**
  * 2A03的CPU模拟
