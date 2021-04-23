@@ -110,9 +110,9 @@ public class Cartridge {
         }
     }
 
-    public void cpuWrite(int address, byte data) {
+    public void cpuWrite(int address, int data) {
         if (address >= 0x8000 && address <= 0xFFFF) {
-            prg[address & (header.prgBanksCount > 1 ? 0x7FFF : 0x3FFF )] = data;
+            prg[address & (header.prgBanksCount > 1 ? 0x7FFF : 0x3FFF )] = (byte) data;
         }
     }
 

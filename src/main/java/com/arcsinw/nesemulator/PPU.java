@@ -168,7 +168,7 @@ public class PPU {
     private byte ppuStatus = 0x00;
 
     /**
-     * OAM 的读写地址 无符号型 $2003
+     * OAM 的读写地址 无符号型byte $2003
      */
     private int oamAddress = 0x00;
 
@@ -199,8 +199,8 @@ public class PPU {
      */
     private byte ppuData = 0x00;
 
-    public void setPpuCtrlValue(byte v) {
-        ppuCtrl = v;
+    public void setPpuCtrlValue(int v) {
+        ppuCtrl = (byte) (v & 0x00FF);
     }
 
     public void setPpuCtrl(PPUCtrl flag, int value) {
@@ -215,8 +215,8 @@ public class PPU {
         return (byte) ((ppuCtrl & p.mask) == 0 ? 0 : 1);
     }
 
-    public void setPpuMaskValue(byte v) {
-        ppuMask = v;
+    public void setPpuMaskValue(int v) {
+        ppuMask = (byte) (v & 0x00FF);
     }
 
     public void setPpuMask(PPUMask flag, int value) {
@@ -231,8 +231,8 @@ public class PPU {
         return (ppuMask & p.mask) == 0 ? 0 : 1;
     }
 
-    public void setPpuStatusValue(byte v) {
-        ppuStatus = v;
+    public void setPpuStatusValue(int v) {
+        ppuStatus = (byte) (v & 0x00FF);
     }
 
     public void setPpuStatus(PPUStatus flag, int value) {
@@ -293,7 +293,7 @@ public class PPU {
          * Y position of top of sprite
          * 1 字节（无符号）
          */
-        public short y;
+        public int y;
 
         /**
          * Tile index number
@@ -302,8 +302,9 @@ public class PPU {
          * xxxxxxx y          8 bit
          * ||||||| +--------- Pattern table的地址，1 $1000, 0 $0000
          * +++++++----------- Sprite上半部分tile id
+         * 1 字节（无符号）
          */
-        public byte id;
+        public int id;
 
         /**
          * Attributes
@@ -321,19 +322,19 @@ public class PPU {
          * X position of left side of sprite.
          * 1 字节（无符号）
          */
-        public short x;
+        public int x;
 
         public OAMEntry(byte y, byte id, byte attribute, byte x) {
-            this.y = y;
-            this.id = id;
+            this.y = y & 0x00FF;
+            this.id = id & 0x00FF;
             this.attribute = attribute;
-            this.x = x;
+            this.x = x & 0x00FF;
         }
 
         public OAMEntry() {
             x = 0xFF;
             y = 0xFF;
-            id = (byte) 0xFF;
+            id = 0xFF;
             attribute = (byte) 0xFF;
         }
 
@@ -354,7 +355,6 @@ public class PPU {
      * OAM (Object Attribute Memory)
      * 64 * 4 = 256字节
      */
-//    public byte[] oam = new byte[256];
     public OAMEntry[] oam = new OAMEntry[64];
 
     /**
@@ -362,19 +362,19 @@ public class PPU {
      * @param address 0 ~ 255
      * @param data
      */
-    public void setOAMEntry(int address, byte data) {
+    public void setOAMEntry(int address, int data) {
         switch(address % 4) {
             case 0:
-                oam[address / 4].y = (short) (data & 0x00FF);
+                oam[address / 4].y = data & 0x00FF;
                 break;
             case 1:
-                oam[address / 4].id = data;
+                oam[address / 4].id = data & 0x00FF;
                 break;
             case 2:
-                oam[address / 4].attribute = data;
+                oam[address / 4].attribute = getUnsignedByte(data);
                 break;
             case 3:
-                oam[address / 4].x = (short) (data & 0x00FF);
+                oam[address / 4].x = data & 0x00FF;
                 break;
             default:
                 break;
@@ -392,7 +392,7 @@ public class PPU {
                 data = (byte) oam[address / 4].y;
                 break;
             case 1:
-                data = oam[address / 4].id;
+                data = (byte) oam[address / 4].id;
                 break;
             case 2:
                 data = oam[address / 4].attribute;
@@ -465,9 +465,31 @@ public class PPU {
         }
     }
 
-    private LoopyRegister vramAddress = new LoopyRegister();
-    private LoopyRegister tmpVramAddress = new LoopyRegister();
-    private byte fineX = 0x00;
+//    private LoopyRegister vramAddress = new LoopyRegister();
+//    private LoopyRegister tmpVramAddress = new LoopyRegister();
+
+    /**
+     * Fine X scroll (3 bits)
+     */
+    private int fineX = 0x00;
+
+    /**
+     * yyy NN YYYYY XXXXX
+     * ||| || ||||| +++++-- coarse X scroll (8x8 tile)
+     * ||| || +++++-------- coarse Y scroll
+     * ||| ++-------------- nametable select
+     * +++----------------- fine Y scroll
+     */
+    private int v = 0;
+
+    /**
+     * yyy NN YYYYY XXXXX
+     * ||| || ||||| +++++-- coarse X scroll
+     * ||| || +++++-------- coarse Y scroll
+     * ||| ++-------------- nametable select
+     * +++----------------- fine Y scroll
+     */
+    private int t = 0;
 
     /**
      * 卡带
@@ -512,25 +534,52 @@ public class PPU {
         return ppuRead(0x3F00 + (paletteId << 2) + pixelId);
     }
 
+
+    private int getTileAddress(int v) {
+        return 0x2000 | (v & 0x0FFF);
+    }
+
+    /**
+     *  NN 1111 YYY XXX
+     *  || |||| ||| +++-- high 3 bits of coarse X (x/4)
+     *  || |||| +++------ high 3 bits of coarse Y (y/4)
+     *  || ++++---------- attribute offset (960 bytes)
+     *  ++--------------- nametable select
+     * @param v
+     * @return
+     */
+    private int getAttributeAddress(int v) {
+        return 0x23C0 | (v & 0x0C00) | ((v >> 4) & 0x38) | ((v >> 2) & 0x07);
+    }
+
+    private int getFineY(int v) {
+        return v >>> 12;
+    }
+
+    /**
+     * PPU的地址总线是14bit，v的最高位未使用
+     * @param v
+     * @return
+     */
+    private int getPPUAddress(int v) {
+        return v & 0x3FFF;
+    }
+
     /**
      * CPU 与 PPU之间的通信通过 0x2000 - 0x2007的 8个 寄存器 来实现
      * @param address 写入地址 16bit
      * @param data 要写入的数据 8bit
      */
-    public void cpuWrite(int address, byte data) {
+    public void cpuWrite(int address, int data) {
         switch (address) {
             // PPU Control
             case 0x0000:
                 setPpuCtrlValue(data);
-                tmpVramAddress.nameTableX = getPpuCtrl(PPUCtrl.NameTableSelectX);
-                tmpVramAddress.nameTableY = getPpuCtrl(PPUCtrl.NameTableSelectY);
+                t = (t & ~0x0C00) | ((data & 0x03) << 10);
                 break;
             // PPU Mask
             case 0x0001:
                 setPpuMaskValue(data);
-                break;
-            // PPU Status (not writeable)
-            case 0x0002:
                 break;
             // OAM Address
             case 0x0003:
@@ -543,12 +592,13 @@ public class PPU {
             // PPU SCROLL
             case 0x0005:
                 if (isFirstPpuAddress) {
-                    fineX = (byte) (data & 0x07);
-                    tmpVramAddress.coarseX = (byte) ((data & 0x00FF) >>> 3);
+                    t = (t & ~0x001F) | ((data & 0x00FF) >>> 3);
+                    fineX = data & 0x07;
                     isFirstPpuAddress = false;
                 } else {
-                    tmpVramAddress.fineY = (byte) (data & 0x07);
-                    tmpVramAddress.coarseY = (byte) ((data & 0x00FF) >>> 3);
+                    t = (t & ~0x7000) | ((data & 0x07) << 12);
+//                    t = (t & ~0x03E0) | (((data & 0x00FF) >>> 3) << 5);
+                    t = (t & ~0x3E0) | (((data & 0x00FF) & ~7) << 2);
                     isFirstPpuAddress = true;
                 }
                 break;
@@ -560,41 +610,29 @@ public class PPU {
                  * 先写入高地址 再写入低地址
                  */
                 if (isFirstPpuAddress) {
-                    if (logging) {
-                        tmp.append(String.format(" %02X ", data));
-                    }
-//                    tmpPpuAddress = (tmpPpuAddress & 0x00FF) | ((data << 8) & 0x0FFFF);
-                    tmpVramAddress.setValue((tmpVramAddress.getValue() & 0x00FF) | ((data & 0x3F) << 8));
+                    t = (t & ~0x7F00) | ((data & 0x3F) << 8);
                     isFirstPpuAddress = false;
                 } else {
                     if (logging) {
                         tmp.append(String.format(" %02X ", data));
                     }
-//                    tmpPpuAddress = (tmpPpuAddress & 0xFF00) | (data & 0x00FF);
-                    tmpVramAddress.setValue((tmpVramAddress.getValue() & 0xFFF00) | (data & 0x00FF));
 
-                    vramAddress.setValue(tmpVramAddress.getValue());
+                    t = (t & ~0xFF) | (data & 0xFF);
+                    v = t;
                     isFirstPpuAddress = true;
                 }
                 break;
             // PPU Data
             case 0x0007:
-//                ppuWrite(tmpPpuAddress, data);
-                ppuWrite(vramAddress.getValue(), data);
-
-                if (logging) {
-                    System.out.println(String.format("%S %04X %X", tmp.toString(), vramAddress.getValue(), data));
-                    tmp.delete(0, tmp.length());
-                }
-//                tmpPpuAddress += (getPpuCtrl(PPUCtrl.IncrementMode) == 0 ? 1 : 32);
-                vramAddress.setValue(vramAddress.getValue() + (getPpuCtrl(PPUCtrl.IncrementMode) == 0 ? 1 : 32));
+                ppuWrite(getPPUAddress(v), data);
+                v = (v + (getPpuCtrl(PPUCtrl.IncrementMode) == 0 ? 1 : 32)) & 0x3FFF;
                 break;
             default:
                 break;
         }
 
         // 改变PPUSTATUS的后5位
-//        ppuStatus = (byte) ((ppuStatus & 0xE0) | (data & 0x1F));
+        ppuStatus = (byte) ((ppuStatus & 0xE0) | (data & 0x1F));
     }
 
     /**
@@ -607,11 +645,6 @@ public class PPU {
         byte data = 0x00;
 
         switch (address) {
-            // PPU Control
-            case 0x0000:
-            // PPU Mask
-            case 0x0001:
-                break;
             // PPU Status
             case 0x0002:
                 // ppu status 只有前三位有效
@@ -619,44 +652,44 @@ public class PPU {
                 setPpuStatus(PPUStatus.VBlank, 0);
                 isFirstPpuAddress = true;
                 break;
-            // OAM Address
-            case 0x0003:
-                break;
             // OAM Data
             case 0x0004:
                 data = getOAMEntry(oamAddress);
-//                data = oam[oamAddress];
-                break;
-            // PPU Address
-            case 0x0006:
                 break;
             // PPU Data
             case 0x0007:
                 // CPU 从 PPU读取数据 要慢一个 ppuRead
                 data = ppuDataBuffer;
 //                    ppuDataBuffer = ppuRead(tmpPpuAddress);
-                ppuDataBuffer = ppuRead(vramAddress.getValue());
+//                ppuDataBuffer = ppuRead(vramAddress.getValue());
+                ppuDataBuffer = ppuRead(getPPUAddress(v));
 
                 // 读取Palettes没有延迟
 //                    if (tmpPpuAddress >= 0x3F00) {
-                if (vramAddress.getValue() >= 0x3F00) {
+//                if (vramAddress.getValue() >= 0x3F00) {
+//                    data = ppuDataBuffer;
+//                }
+                if (getPPUAddress(v) >= 0x3F00) {
                     data = ppuDataBuffer;
                 }
 
 //                    tmpPpuAddress += (getPpuCtrl(PPUCtrl.IncrementMode) == 0 ? 1 : 32);
-                vramAddress.setValue(vramAddress.getValue() + (getPpuCtrl(PPUCtrl.IncrementMode) == 0 ? 1 : 32));
+                v = (v + (getPpuCtrl(PPUCtrl.IncrementMode) == 0 ? 1 : 32)) & 0x3FFF;
+//                vramAddress.setValue(vramAddress.getValue() + (getPpuCtrl(PPUCtrl.IncrementMode) == 0 ? 1 : 32));
+                break;
+            default:
                 break;
         }
 
         return data;
     }
 
-    public void ppuWrite(int address, byte data) {
+    public void ppuWrite(int address, int data) {
         address &= 0x3FFF;
 
         if (address >= 0x0000 && address <= 0x1FFF) {
             // Pattern table
-            patternTable[(address & 0x1000) >>> 12][address & 0x0FFF] = data;
+            patternTable[(address & 0x1000) >>> 12][address & 0x0FFF] = getUnsignedByte(data);
         }
         if (address >= 0x2000 && address <= 0x3EFF) {
             // Name Tables 实际地址 0x2000 - 0x2FFF 其余是Mirror（只Mirror了0x2000 - 0x2EFF）
@@ -666,32 +699,32 @@ public class PPU {
             {
                 // Vertical
                 if (address >= 0x0000 && address <= 0x03FF) {
-                    nameTable[0][address & 0x03FF] = data;
+                    nameTable[0][address & 0x03FF] = getUnsignedByte(data);
                 }
                 if (address >= 0x0400 && address <= 0x07FF) {
-                    nameTable[1][address & 0x03FF] = data;
+                    nameTable[1][address & 0x03FF] = getUnsignedByte(data);
                 }
                 if (address >= 0x0800 && address <= 0x0BFF) {
-                    nameTable[0][address & 0x03FF] = data;
+                    nameTable[0][address & 0x03FF] = getUnsignedByte(data);
                 }
                 if (address >= 0x0C00 && address <= 0x0FFF) {
-                    nameTable[1][address & 0x03FF] = data;
+                    nameTable[1][address & 0x03FF] = getUnsignedByte(data);
                 }
             }
             else // horizontal mirror
             {
                 // Horizontal
                 if (address >= 0x0000 && address <= 0x03FF) {
-                    nameTable[0][address & 0x03FF] = data;
+                    nameTable[0][address & 0x03FF] = getUnsignedByte(data);
                 }
                 if (address >= 0x0400 && address <= 0x07FF) {
-                    nameTable[0][address & 0x03FF] = data;
+                    nameTable[0][address & 0x03FF] = getUnsignedByte(data);
                 }
                 if (address >= 0x0800 && address <= 0x0BFF) {
-                    nameTable[1][address & 0x03FF] = data;
+                    nameTable[1][address & 0x03FF] = getUnsignedByte(data);
                 }
                 if (address >= 0x0C00 && address <= 0x0FFF) {
-                    nameTable[1][address & 0x03FF] = data;
+                    nameTable[1][address & 0x03FF] = getUnsignedByte(data);
                 }
             }
         }
@@ -700,10 +733,10 @@ public class PPU {
             address &= 0x001F;  // % 32
 
             if (address == 0x0010 || address == 0x0014 || address == 0x0018 || address == 0x001C) {
-                palette[address - 0x10] = data;
+                palette[address - 0x10] = getUnsignedByte(data);
             }
 
-            palette[address] = data;
+            palette[address] = getUnsignedByte(data);
         }
     }
 
@@ -713,7 +746,6 @@ public class PPU {
 
         if (address >= 0x0000 && address <= 0x1FFF) {
             // Pattern table
-//            System.out.println(String.format("%04X", address));
             data = patternTable[(address & 0x1000) >> 12][address & 0x0FFF];
         }
         if (address >= 0x2000 && address <= 0x3EFF) {
@@ -779,7 +811,7 @@ public class PPU {
     // region 背景滚动相关字段
 
     /**
-     * 扫描线编号,1帧有262条扫描线
+     * 扫描线编号,1帧有262条扫描线(0 - 261)
      * 0 - 239 可见扫描线
      * 240 post-render line
      * 241 - 260 vertical blank lines
@@ -805,7 +837,7 @@ public class PPU {
 
     public boolean nmi = false;
 
-    private byte nextBackgroundTileId = 0x00;
+    private int nextBackgroundTileId = 0x00;
     private byte nextBackgroundTileAttribute = 0x00;
 
     /**
@@ -873,50 +905,44 @@ public class PPU {
 
     public void incrementScrollX() {
         if ((getPpuMask(PPUMask.BackgroundEnable)) != 0 || (getPpuMask(PPUMask.SpriteEnable) != 0)) {
-            if (vramAddress.coarseX == 31) {
-                vramAddress.coarseX = 0;
-
-                // 修改当前的Name table
-                vramAddress.nameTableX = (byte) (1 - vramAddress.nameTableX);
+            if ((v & 0x001F) == 31) { // if coarse X == 31
+                v &= ~0x001F;          // coarse X = 0
+                v ^= 0x0400;           // switch horizontal nametable
             } else {
-                vramAddress.coarseX++;
+                v += 1;                // increment coarse X
             }
         }
     }
 
     public void incrementScrollY() {
         if ((getPpuMask(PPUMask.BackgroundEnable)) != 0 || (getPpuMask(PPUMask.SpriteEnable) != 0)) {
-            if (vramAddress.fineY < 7) {
-                vramAddress.fineY++;
+            if ((v & 0x7000) != 0x7000) {       // if fine Y < 7
+                v += 0x1000;                      // increment fine Y
             } else {
-                vramAddress.fineY = 0;
-
-                if (vramAddress.coarseY == 29) {
-                    vramAddress.coarseY = 0;
-
-                    // 修改当前的Name table
-                    vramAddress.nameTableY = (byte) (1 - vramAddress.nameTableY);
-                } else if (vramAddress.coarseY > 29) {
-                    vramAddress.coarseY = 0;
+                v &= ~0x7000;                     // fine Y = 0
+                int y = (v & 0x03E0) >> 5;        // let y = coarse Y
+                if (y == 29) {
+                    y = 0;                          // coarse Y = 0
+                    v ^= 0x0800;                    // switch vertical nametable
+                } else if (y == 31) {
+                    y = 0;                          // coarse Y = 0, nametable not switched
                 } else {
-                    vramAddress.coarseY++;
+                    y += 1; // increment coarse Y
                 }
+                v = (v & ~0x03E0) | (y << 5);     // put coarse Y back into v
             }
         }
     }
 
     public void transferAddressX() {
         if ((getPpuMask(PPUMask.BackgroundEnable)) != 0 || (getPpuMask(PPUMask.SpriteEnable) != 0)) {
-            vramAddress.coarseX = tmpVramAddress.coarseX;
-            vramAddress.nameTableX = tmpVramAddress.nameTableX;
+            v = (v & ~0x041F) | (t & 0x041F);
         }
     }
 
     public void transferAddressY() {
         if ((getPpuMask(PPUMask.BackgroundEnable)) != 0 || (getPpuMask(PPUMask.SpriteEnable) != 0)) {
-            vramAddress.coarseY = tmpVramAddress.coarseY;
-            vramAddress.nameTableY = tmpVramAddress.nameTableY;
-            vramAddress.fineY = tmpVramAddress.fineY;
+            v = (v & ~0x7BE0) | (t & 0x7BE0);
         }
     }
 
@@ -934,6 +960,7 @@ public class PPU {
 
     private boolean spriteZeroHitPossible = false;
     private boolean spriteZeroRendering = false;
+
 
     /**
      * 参考http://wiki.nesdev.com/w/images/4/4f/Ppu.svg
@@ -993,10 +1020,13 @@ public class PPU {
             // 混合前景色和背景色
             byte pixel = backgroundPixel, palette = backgroundPalette;
 
-            if (foregroundPixel != 0 && foregroundPriority == 0) {
-                pixel = foregroundPixel;
-                palette = foregroundPalette;
-            }
+            pixel = foregroundPixel;
+            palette = foregroundPalette;
+
+//            if (foregroundPixel != 0 && foregroundPriority == 0) {
+//                pixel = foregroundPixel;
+//                palette = foregroundPalette;
+//            }
 
             // Sprite Zero Hit Detection
             if (spriteZeroRendering && spriteZeroHitPossible) {
@@ -1036,38 +1066,52 @@ public class PPU {
                         loadBackgroundShifters();
 
                         // 加载Name table
-                        nextBackgroundTileId = ppuRead(0x2000 + (vramAddress.getValue() & 0x0FFF));
+                        nextBackgroundTileId = ppuRead(getTileAddress(v)) & 0x00FF;
+
+                        if (nextBackgroundTileId > 256) System.out.println(nextBackgroundTileId);
+//                        nextBackgroundTileId = ppuRead(0x2000 + (vramAddress.getValue() & 0x0FFF));
                         break;
                     case 3:
                         // 读取Attribute table中的1字节（Attribute table中1字节控制一个4x4tile 的大Tile的颜色）
                         // 通过nameTableX,Y 计算tile所在的Name table
                         // 通过coarseX,Y 计算tile所在的 4x4tile 的大Tile id
                         // 使用大Tile id获取attribute
-                        nextBackgroundTileAttribute = ppuRead(0x23C0 | (vramAddress.nameTableY << 11) |
-                                (vramAddress.nameTableX << 10) |
-                                (vramAddress.coarseX >>> 2) |
-                                ((vramAddress.coarseY >>> 2) << 3));
+//                        nextBackgroundTileAttribute = ppuRead(0x23C0 | (vramAddress.nameTableY << 11) |
+//                                (vramAddress.nameTableX << 10) |
+//                                (vramAddress.coarseX >>> 2) |
+//                                ((vramAddress.coarseY >>> 2) << 3));
 
-                        // 从Attribute Table的1字节中选出2 bit
-                        if ((vramAddress.coarseY & 0x02) != 0) {
+                        nextBackgroundTileAttribute = ppuRead(getAttributeAddress(v));
+
+                        if (((v >>> 5) & 0x02) != 0) {
                             nextBackgroundTileAttribute >>>= 4;
                         }
 
-                        if ((vramAddress.coarseX & 0x02) != 0) {
+                        if ((v & 0x02) != 0) {
                             nextBackgroundTileAttribute >>>= 2;
                         }
+
+                        // 从Attribute Table的1字节中选出2 bit
+
+//                        if ((vramAddress.coarseY & 0x02) != 0) {
+//                            nextBackgroundTileAttribute >>>= 4;
+//                        }
+//
+//                        if ((vramAddress.coarseX & 0x02) != 0) {
+//                            nextBackgroundTileAttribute >>>= 2;
+//                        }
 
                         nextBackgroundTileAttribute &= 0x03;
                         break;
                     case 5:
                         // 读取Pattern table低字节
                         nextBackgroundTilePatternLo = ppuRead((getPpuCtrl(PPUCtrl.BackgroundSelect) << 12) +
-                                (nextBackgroundTileId << 4) + (vramAddress.fineY & 0x07));
+                                (nextBackgroundTileId << 4) + getFineY(v));
                         break;
                     case 7:
                         // 读取Pattern table高字节
                         nextBackgroundTilePatternHi = ppuRead((getPpuCtrl(PPUCtrl.BackgroundSelect) << 12) +
-                                (nextBackgroundTileId << 4) + (vramAddress.fineY & 0x07) + 8);
+                                (nextBackgroundTileId << 4) + getFineY(v) + 8);
                         break;
                     case 0:
                         // increment horizontal of v
@@ -1105,7 +1149,7 @@ public class PPU {
                 int index = 0;
                 spriteZeroHitPossible = false;
                 while (index < 64 && spriteCount < 9) {
-                    int diff = scanLine - (oam[index].y & 0x00FF);
+                    int diff = scanLine - oam[index].y;
                     if (diff >= 0 && diff < (getPpuCtrl(PPUCtrl.SpriteSize) == 1 ? 16 : 8)) {
                         if (spriteCount < 8) {
                             if (index == 0) {
@@ -1126,49 +1170,49 @@ public class PPU {
             if (cycles == 340) {
                 for (int i = 0; i < spriteCount; i++) {
                     byte spritePatternBitsLo = 0, spritePatternBitsHi = 0;
-                    short spritePatternAddressLo = 0, spritePatternAddressHi = 0;
+                    int spritePatternAddressLo = 0, spritePatternAddressHi = 0;
 
                     // 8x8
                     if (getPpuCtrl(PPUCtrl.SpriteSize) == 0) {
                         // 垂直翻转Sprite
                         if ((scanLineSprite.get(i).attribute & 0x80) != 0) {
-                            spritePatternAddressLo = (short) ((getPpuCtrl(PPUCtrl.SpriteSelect) << 12)
+                            spritePatternAddressLo = (getPpuCtrl(PPUCtrl.SpriteSelect) << 12)
                                     | (scanLineSprite.get(i).id << 4)
-                                    | (7 - (scanLine - scanLineSprite.get(i).y)));
+                                    | (7 - (scanLine - scanLineSprite.get(i).y));
                         } else {
-                            spritePatternAddressLo = (short) ((getPpuCtrl(PPUCtrl.SpriteSelect) << 12)
+                            spritePatternAddressLo = (getPpuCtrl(PPUCtrl.SpriteSelect) << 12)
                                     | (scanLineSprite.get(i).id << 4)
-                                    | (scanLine - scanLineSprite.get(i).y));
+                                    | (scanLine - scanLineSprite.get(i).y);
                         }
                     } else { // 8x16，由两个编号连续的tile组成，上半部分tile id为x，则下半部分tile id为x+1
                         // 垂直翻转Sprite
                         if ((scanLineSprite.get(i).attribute & 0x80) != 0) {
                             // Sprite的上半部分
                             if (scanLine - scanLineSprite.get(i).y < 8) {
-                                spritePatternAddressLo = (short) (((scanLineSprite.get(i).id & 0x01) << 12)
+                                spritePatternAddressLo = ((scanLineSprite.get(i).id & 0x01) << 12)
                                         | (((scanLineSprite.get(i).id & 0xFE) + 1) << 4)
-                                        | (7 - ((scanLine - scanLineSprite.get(i).y) & 0x07)));
+                                        | (7 - ((scanLine - scanLineSprite.get(i).y) & 0x07));
                             } else {
-                                spritePatternAddressLo = (short) (((scanLineSprite.get(i).id & 0x01) << 12)
+                                spritePatternAddressLo = ((scanLineSprite.get(i).id & 0x01) << 12)
                                         | ((scanLineSprite.get(i).id & 0xFE) << 4)
-                                        | (7 - ((scanLine - scanLineSprite.get(i).y) & 0x07)));
+                                        | (7 - ((scanLine - scanLineSprite.get(i).y) & 0x07));
                             }
                         } else {
                             // 不垂直翻转
                             if (scanLine - scanLineSprite.get(i).y < 8) {
-                                spritePatternAddressLo = (short) (((scanLineSprite.get(i).id & 0x01) << 12)
+                                spritePatternAddressLo = ((scanLineSprite.get(i).id & 0x01) << 12)
                                         | ((scanLineSprite.get(i).id & 0xFE) << 4)
-                                        | ((scanLine - scanLineSprite.get(i).y) & 0x07));
+                                        | ((scanLine - scanLineSprite.get(i).y) & 0x07);
 
                             } else {
-                                spritePatternAddressLo = (short) (((scanLineSprite.get(i).id & 0x01) << 12)
+                                spritePatternAddressLo = ((scanLineSprite.get(i).id & 0x01) << 12)
                                         | (((scanLineSprite.get(i).id & 0xFE) + 1) << 4)
-                                        | ((scanLine - scanLineSprite.get(i).y) & 0x07));
+                                        | ((scanLine - scanLineSprite.get(i).y) & 0x07);
                             }
                         }
                     }
 
-                    spritePatternAddressHi = (short) (spritePatternAddressLo + 8);
+                    spritePatternAddressHi = spritePatternAddressLo + 8;
                     spritePatternBitsHi = ppuRead(spritePatternAddressHi);
                     spritePatternBitsLo = ppuRead(spritePatternAddressLo);
 
@@ -1183,6 +1227,7 @@ public class PPU {
                 }
             }
         }
+
 
         // Post-render line, do nothing
         if (scanLine == 240) {}
@@ -1214,7 +1259,8 @@ public class PPU {
         }
 
         if (cycles == 338 || cycles == 340) {
-            nextBackgroundTileId = ppuRead(0x2000 | (vramAddress.getValue() & 0x0FFF));
+//            nextBackgroundTileId = ppuRead(0x2000 | (vramAddress.getValue() & 0x0FFF));
+            nextBackgroundTileId = ppuRead(0x2000 | (getPPUAddress(v) & 0x0FFF));
         }
 
         cycles++;
@@ -1234,8 +1280,8 @@ public class PPU {
     public void reset() {
         isFirstPpuAddress = true;
         ppuDataBuffer = 0x00;
-        scanLine = 0;
-        cycles = 0;
+        scanLine = 240;
+        cycles = 340;
         frames = 0;
 
         fineX = 0;
@@ -1253,7 +1299,11 @@ public class PPU {
         ppuCtrl = 0;
         ppuMask = 0;
 
-        vramAddress.setValue(0);
-        tmpVramAddress.setValue(0);
+        v = 0;
+        t = 0;
+    }
+
+    private byte getUnsignedByte(int value) {
+        return (byte) (value & 0x00FF);
     }
 }

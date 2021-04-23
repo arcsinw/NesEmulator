@@ -46,7 +46,7 @@ public class Joypad {
         }
     }
 
-    public void write(int address, byte data) {
+    public void write(int address, int data) {
         if (address == 0x4016) {
             if ((data & 0x01) != 0) {
                 // 向0x4016写入0x01，将手柄设置为 选通

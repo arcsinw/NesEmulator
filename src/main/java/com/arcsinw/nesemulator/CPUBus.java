@@ -66,17 +66,18 @@ public class CPUBus {
      * @param address 写入地址 16bit
      * @param data 要写入的数据 8bit
      */
-    public void write(int address, byte data) {
+    public void write(int address, int data) {
+        byte byteData = (byte) (data & 0x00FF);
         if (address >= 0x0000 && address <= 0x1FFF) {
             // 0x0000 - 0x1FFF 共8k，但实际CPU RAM只有2K大小，其余都是mirror
-            cpuRAM[address & 0x07FF] = data;
+            cpuRAM[address & 0x07FF] = byteData;
         } else if (address >= 0x2000 && address <= 0x3FFF) {
             // 0x2000 - 0x2007 是PPU的8个寄存器，其余是mirror
             // CPU通过寄存器读写PPU
-            ppu.cpuWrite(address & 0x0007, data);
+            ppu.cpuWrite(address & 0x0007, byteData);
         } else if (address == 0x4014) {
             // 执行DMA操作
-            dmaPage = data;
+            dmaPage = byteData;
             dmaOffset = 0x00;
 
             isDMAStart = true;

@@ -1,9 +1,7 @@
 package com.arcsinw.nesemulator;
 
-import com.arcsinw.nesemulator.ui.AboutDialog;
-import com.arcsinw.nesemulator.ui.NameTableFrame;
-import com.arcsinw.nesemulator.ui.ObjectAttributeMemoryFrame;
-import com.arcsinw.nesemulator.ui.PatternTableFrame;
+import com.arcsinw.nesemulator.ui.*;
+import com.arcsinw.nesemulator.utils.IdeaDebugUtils;
 
 import java.awt.*;
 import java.awt.event.KeyAdapter;
@@ -15,6 +13,7 @@ import java.awt.image.DataBufferInt;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class Emulator extends Frame implements PPU.FrameRenderCompletedEventListener {
     private static CPU cpu = new CPU();
@@ -59,6 +58,12 @@ public class Emulator extends Frame implements PPU.FrameRenderCompletedEventList
                 oamMenuItem.addActionListener(e -> showOAMFrame());
                 debugMenu.add(oamMenuItem);
             }
+            {
+                MenuItem hexEditMenuItem = new MenuItem("十六进制编辑器");
+                hexEditMenuItem.addActionListener(e -> showHexViewerFrame());
+                debugMenu.add(hexEditMenuItem);
+            }
+
             menuBar.add(debugMenu);
         }
 
@@ -155,26 +160,13 @@ public class Emulator extends Frame implements PPU.FrameRenderCompletedEventList
         cpuBus.setCpu(cpu);
         cpuBus.setPpu(ppu);
         cpuBus.setCartridge(cartridge);
-
-        int line = 0;
         cpuBus.reset();
 
-        while (line++ >= 0 && true) {
+        while (true) {
             cpuBus.clock();
         }
     }
 
-    public static String get2DArrayPrint(byte[] matrix) {
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < (matrix.length / 16); i++) {
-            sb.append(String.format("%04X : ", 0x2000 + i * 16));
-            for (int j = 0; j < 16; j++) {
-                sb.append(String.format("%02X  ", matrix[i* 16 + j]));
-            }
-            sb.append("\n");
-        }
-        return sb.toString();
-    }
 
     public void showPatternTableFrame() {
         if (cartridge != null) {
@@ -193,6 +185,13 @@ public class Emulator extends Frame implements PPU.FrameRenderCompletedEventList
     public void showOAMFrame() {
         if (cartridge != null) {
             ObjectAttributeMemoryFrame oamFrame = new ObjectAttributeMemoryFrame(ppu);
+        }
+    }
+
+    public void showHexViewerFrame() {
+        if (cartridge != null) {
+            new MemoryViewerFrame("CPU RAM", cpuBus.cpuRAM);
+            new MemoryViewerFrame("PPU RAM", ppu.getPalette());
         }
     }
 
