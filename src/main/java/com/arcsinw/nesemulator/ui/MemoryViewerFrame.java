@@ -7,9 +7,10 @@ public class MemoryViewerFrame extends JPanel {
 
     private static final int FONT_SIZE = 16;
 
-    byte[] mem;
-    int offset = 0;
-    int lines;
+    private byte[] memory;
+    private byte[][] memory2D;
+    private int offset = 0;
+    private int lines;
 
     static JFrame frame;
     static JTabbedPane tabbed;
@@ -31,9 +32,20 @@ public class MemoryViewerFrame extends JPanel {
     }
 
 
-    public MemoryViewerFrame(String title, byte[] mem) {
-        this.mem = mem;
-        lines = mem.length/16;
+    public MemoryViewerFrame(String title, byte[] memory) {
+        this.memory = memory;
+        lines = memory.length/16;
+        scroll = new JScrollBar(JScrollBar.VERTICAL, 0, Math.min(16, lines), 0, lines);
+        scroll.addAdjustmentListener(e -> {
+            offset = e.getValue();
+            repaint();
+        });
+        addViewer(title, this, scroll);
+    }
+
+    public MemoryViewerFrame(String title, byte[][] memory) {
+        this.memory2D = memory;
+        lines = (memory2D.length * memory2D[0].length) / 16;
         scroll = new JScrollBar(JScrollBar.VERTICAL, 0, Math.min(16, lines), 0, lines);
         scroll.addAdjustmentListener(e -> {
             offset = e.getValue();
@@ -53,11 +65,11 @@ public class MemoryViewerFrame extends JPanel {
         for (int i = 0; i < lines; i++) {
             StringBuffer sb = new StringBuffer();
             int addr = (offset + i) << 4;
-            if (addr < this.mem.length) {
+            if (addr < this.memory.length) {
                 sb.append(String.format("%04X|  ", addr));
 
-                for (int j = 0; j < 16 && addr + j < mem.length; j++) {
-                    sb.append(String.format("%02X", mem[addr + j]));
+                for (int j = 0; j < 16 && addr + j < memory.length; j++) {
+                    sb.append(String.format("%02X", memory[addr + j]));
                     sb.append(j % 4 == 3 ? " | " : " ");
                 }
                 if (((offset + i) & 0xF) == 0) {

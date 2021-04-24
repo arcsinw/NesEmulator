@@ -131,7 +131,6 @@ public class SnakeTestFrame extends Frame {
             // 读 0x0200 ~ 0x0600 渲染画面 32x32
             snakeTest.display();
 
-            Thread.sleep(10);
         } while (time++ < 10e9);
     }
 

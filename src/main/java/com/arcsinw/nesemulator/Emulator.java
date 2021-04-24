@@ -1,7 +1,6 @@
 package com.arcsinw.nesemulator;
 
 import com.arcsinw.nesemulator.ui.*;
-import com.arcsinw.nesemulator.utils.IdeaDebugUtils;
 
 import java.awt.*;
 import java.awt.event.KeyAdapter;
@@ -13,7 +12,6 @@ import java.awt.image.DataBufferInt;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.concurrent.atomic.AtomicInteger;
 
 public class Emulator extends Frame implements PPU.FrameRenderCompletedEventListener {
     private static CPU cpu = new CPU();
@@ -163,10 +161,25 @@ public class Emulator extends Frame implements PPU.FrameRenderCompletedEventList
         cpuBus.reset();
 
         while (true) {
-            cpuBus.clock();
+            long start = System.currentTimeMillis();
+            if (!emulator.frameRenderCompleted) {
+                cpuBus.clock();
+            } else {
+                long elapsed = System.currentTimeMillis() - start;
+                long wait = 1000 / FPS - elapsed;
+                emulator.frameRenderCompleted = false;
+                try {
+                    if (wait > 0) {
+                        Thread.sleep(wait);
+                    }
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
         }
     }
 
+    private static final int FPS = 60;
 
     public void showPatternTableFrame() {
         if (cartridge != null) {
@@ -425,5 +438,8 @@ public class Emulator extends Frame implements PPU.FrameRenderCompletedEventList
     @Override
     public void notifyFrameRenderCompleted() {
         display();
+        frameRenderCompleted = true;
     }
+
+    private boolean frameRenderCompleted = false;
 }

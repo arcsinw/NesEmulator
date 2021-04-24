@@ -347,7 +347,7 @@ public class PPU {
 
         @Override
         public String toString() {
-            return String.format("(%d, %d)      ID: %02X       AT: %02X", x, y, id, attribute);
+            return String.format("(% 4d, % 4d)      ID: %02X       AT: %02X", x, y, id, attribute);
         }
     }
 
@@ -1019,14 +1019,14 @@ public class PPU {
 
             // 混合前景色和背景色
             byte pixel = backgroundPixel, palette = backgroundPalette;
+//
+//            pixel = foregroundPixel;
+//            palette = foregroundPalette;
 
-            pixel = foregroundPixel;
-            palette = foregroundPalette;
-
-//            if (foregroundPixel != 0 && foregroundPriority == 0) {
-//                pixel = foregroundPixel;
-//                palette = foregroundPalette;
-//            }
+            if (foregroundPixel != 0 && foregroundPriority == 0) {
+                pixel = foregroundPixel;
+                palette = foregroundPalette;
+            }
 
             // Sprite Zero Hit Detection
             if (spriteZeroRendering && spriteZeroHitPossible) {

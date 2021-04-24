@@ -6,6 +6,7 @@ import java.util.Map;
 
 /**
  * 2A03的CPU模拟
+ * 1.789773 MHz
  */
 public class CPU {
 
@@ -1288,7 +1289,6 @@ public class CPU {
         X = 0x00;
         Y = 0x00;
         S = 0x00FD;
-
         P = 0x00;
 
         setFlag(StatusFlag.U, 1);
