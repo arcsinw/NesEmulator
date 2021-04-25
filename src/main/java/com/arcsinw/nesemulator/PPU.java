@@ -410,8 +410,7 @@ public class PPU {
     /**
      * 一行扫描线上的Sprite
      */
-    private List<OAMEntry> scanLineSprite = new ArrayList<>(8);
-//    private OAMEntry[] scaneLineSprite = new OAMEntry[8];
+    public List<OAMEntry> scanLineSprite = new ArrayList<>(8);
     private byte spriteCount = 0;
 
     private byte[] spritePatternShifterLo = new byte[8];
@@ -553,7 +552,7 @@ public class PPU {
     }
 
     private int getFineY(int v) {
-        return v >>> 12;
+        return (v >>> 12) & 0x07;
     }
 
     /**
@@ -854,16 +853,16 @@ public class PPU {
     /**
      * 存储下一个背景tile的Pattern 高8位，每经过一个cycle，寄存器左移1位
      */
-    private short backgroundPatternShifterHi = 0x0000;
+    private int backgroundPatternShifterHi = 0x0000;
 
     /**
      * 存储下一个背景tile的Pattern 低8位，每经过一个cycle，寄存器左移1位
      */
-    private short backgroundPatternShifterLo = 0x0000;
+    private int backgroundPatternShifterLo = 0x0000;
 
 
-    private short backgroundAttributeLoShifter = 0x0000;
-    private short backgroundAttributeHiShifter = 0x0000;
+    private int backgroundAttributeShifterLo = 0x0000;
+    private int backgroundAttributeShifterHi = 0x0000;
 
     // endregion
 
@@ -871,11 +870,18 @@ public class PPU {
      * 将扫描线上下一个tile的数据加载到 Shifter中
      */
     public void loadBackgroundShifters() {
-        backgroundPatternShifterHi = (short) ((backgroundPatternShifterHi & 0xFF00) | nextBackgroundTilePatternHi);
-        backgroundPatternShifterLo = (short) ((backgroundPatternShifterLo & 0xFF00) | nextBackgroundTilePatternLo);
+        backgroundPatternShifterHi = ((backgroundPatternShifterHi & 0xFF00) | (nextBackgroundTilePatternHi & 0x00FF)) & 0xFFFF;
+        backgroundPatternShifterLo = ((backgroundPatternShifterLo & 0xFF00) | (nextBackgroundTilePatternLo & 0x00FF)) & 0xFFFF;
 
-        backgroundAttributeHiShifter = (short) ((backgroundAttributeHiShifter & 0xFF00) | ((nextBackgroundTileAttribute & 0x02) != 0 ? 0xFF : 0x00));
-        backgroundAttributeLoShifter = (short) ((backgroundAttributeLoShifter & 0xFF00) | ((nextBackgroundTileAttribute & 0x01) != 0 ? 0xFF : 0x00));
+        if (backgroundAttributeShifterHi != 0x00FF &&
+                backgroundAttributeShifterHi != 0xFFFF &&
+                backgroundAttributeShifterHi != 0x0000 &&
+                backgroundAttributeShifterHi != 0xFF00) {
+            int a = 00;
+        }
+
+        backgroundAttributeShifterHi = ((backgroundAttributeShifterHi & 0xFF00) | ((nextBackgroundTileAttribute & 0x02) != 0 ? 0xFF : 0x00)) & 0xFFFF;
+        backgroundAttributeShifterLo = ((backgroundAttributeShifterLo & 0xFF00) | ((nextBackgroundTileAttribute & 0x01) != 0 ? 0xFF : 0x00)) & 0xFFFF;
     }
 
     /**
@@ -883,11 +889,11 @@ public class PPU {
      */
     public void updateShifters() {
         if ((getPpuMask(PPUMask.BackgroundEnable) != 0) || scanLine == 261) {
-            backgroundAttributeHiShifter <<= 1;
-            backgroundAttributeLoShifter <<= 1;
+            backgroundAttributeShifterHi = (backgroundAttributeShifterHi << 1) & 0xFFFF;
+            backgroundAttributeShifterLo = (backgroundAttributeShifterLo << 1) & 0xFFFF;
 
-            backgroundPatternShifterHi <<= 1;
-            backgroundPatternShifterLo <<= 1;
+            backgroundPatternShifterHi = (backgroundPatternShifterHi << 1) & 0xFFFF;
+            backgroundPatternShifterLo = (backgroundPatternShifterLo << 1) & 0xFFFF;
         }
 
         // 更新Sprite相关Shifter
@@ -983,8 +989,8 @@ public class PPU {
 
                 backgroundPixel = (byte) (colorBit0 | (colorBit1 << 1));
 
-                byte colorBit2 = (byte) ((backgroundAttributeLoShifter & shifterMask) != 0 ? 1 : 0);
-                byte colorBit3 = (byte) ((backgroundAttributeHiShifter & shifterMask) != 0 ? 1 : 0);
+                byte colorBit2 = (byte) ((backgroundAttributeShifterLo & shifterMask) != 0 ? 1 : 0);
+                byte colorBit3 = (byte) ((backgroundAttributeShifterHi & shifterMask) != 0 ? 1 : 0);
 
                 backgroundPalette = (byte) (colorBit2 | (colorBit3 << 1));
             }
@@ -1046,11 +1052,20 @@ public class PPU {
             screen[scanLine][cycles - 1] = getColorFromPalette(palette, pixel);
         }
 
+
+        if (v != 0 && scanLine == 261 && cycles == 321) {
+            int a = 0;
+        }
+
         // 处理可视扫描线和pre-render扫描线中的 8个cycle的循环
         if ((scanLine < 240) || (scanLine == 261)) {
             // Background Render
             if (scanLine == 0 && cycles == 0) {
                 cycles = 1;
+            }
+
+            if (scanLine == 0 && cycles == 1) {
+                int b = 0;
             }
 
             if ((cycles >= 1 && cycles <= 256) || (cycles >= 321 && cycles <= 336)) {
@@ -1067,9 +1082,9 @@ public class PPU {
 
                         // 加载Name table
                         nextBackgroundTileId = ppuRead(getTileAddress(v)) & 0x00FF;
-
-                        if (nextBackgroundTileId > 256) System.out.println(nextBackgroundTileId);
-//                        nextBackgroundTileId = ppuRead(0x2000 + (vramAddress.getValue() & 0x0FFF));
+                        if (nextBackgroundTileId == 0x16) {
+                            int b = 0;
+                        }
                         break;
                     case 3:
                         // 读取Attribute table中的1字节（Attribute table中1字节控制一个4x4tile 的大Tile的颜色）
@@ -1127,8 +1142,13 @@ public class PPU {
             }
 
             if (cycles == 257) {
-                loadBackgroundShifters();
+//                loadBackgroundShifters();
                 transferAddressX();
+            }
+
+            if (cycles == 338 || cycles == 340)
+            {
+                nextBackgroundTileId = ppuRead(getTileAddress(v));
             }
 
             // Foreground Render
@@ -1280,8 +1300,8 @@ public class PPU {
     public void reset() {
         isFirstPpuAddress = true;
         ppuDataBuffer = 0x00;
-        scanLine = 240;
-        cycles = 340;
+        scanLine = 261;
+        cycles = 321;
         frames = 0;
 
         fineX = 0;
@@ -1290,8 +1310,8 @@ public class PPU {
         nextBackgroundTilePatternLo = 0x00;
         nextBackgroundTileId = 0x00;
 
-        backgroundAttributeHiShifter = 0x00;
-        backgroundAttributeLoShifter = 0x00;
+        backgroundAttributeShifterHi = 0x00;
+        backgroundAttributeShifterLo = 0x00;
         backgroundPatternShifterHi = 0x00;
         backgroundPatternShifterLo = 0x00;
 

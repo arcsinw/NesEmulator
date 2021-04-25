@@ -12,9 +12,28 @@ public class Cartridge {
 
     private final String INVALID_NES_ROM_MESSAGE = "非法的nes文件";
 
+    /**
+     * 镜像类型
+     */
     public enum Mirror {
+        /**
+         * 水平镜像
+         */
         Horizontal(0),
-        Vertical(1);
+        /**
+         * 垂直镜像
+         */
+        Vertical(1),
+        /**
+         * 单屏幕镜像
+         */
+        SingleScreen(2),
+        /**
+         * 四屏镜像
+         * 具有4个Name table（卡带提供了2KB）
+         */
+        FourScreen(3),
+        ;
 
         private int key;
 
@@ -51,8 +70,6 @@ public class Cartridge {
          *            1: vertical (horizontal arrangement) (CIRAM A10 = PPU A10)
          */
         Mirror mirror;
-
-
 
         public Header(byte[] bytes) {
             int length = bytes.length;

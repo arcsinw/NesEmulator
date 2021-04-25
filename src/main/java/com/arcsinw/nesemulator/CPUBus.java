@@ -163,6 +163,7 @@ public class CPUBus {
             }
         }
 
+
         if (ppu.nmi) {
             ppu.nmi = false;
             cpu.nmi();

@@ -142,10 +142,10 @@ public class Emulator extends Frame implements PPU.FrameRenderCompletedEventList
 
     public static void main(String[] args) throws IOException {
         Emulator emulator = new Emulator();
-//        String romPath = "/nestest.nes";
+        String romPath = "/nestest.nes";
 //        String romPath = "/Pac-Man.nes";
 //        String romPath = "/Donkey Kong.nes";
-        String romPath = "/896.nes";
+//        String romPath = "/896.nes";
 //        String romPath = "/palette_pal.nes";
 //        String romPath = "/ppu_2000_glitch.nes";
 //        String romPath = "/IceClimber.nes";
@@ -205,6 +205,7 @@ public class Emulator extends Frame implements PPU.FrameRenderCompletedEventList
         if (cartridge != null) {
             new MemoryViewerFrame("CPU RAM", cpuBus.cpuRAM);
             new MemoryViewerFrame("PPU RAM", ppu.getPalette());
+            new MemoryViewerFrame("OAM", ppu.oam);
         }
     }
 
@@ -315,7 +316,7 @@ public class Emulator extends Frame implements PPU.FrameRenderCompletedEventList
         return new Color(c[0], c[1], c[2]);
     }
 
-    private Color fromIndex(byte index) {
+    private Color fromIndex(int index) {
         return fromRGB(ColorPalette.COLOR_PALETTE[index]);
     }
 

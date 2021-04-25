@@ -43,6 +43,7 @@ public class NameTableFrame extends Frame {
         timer.start();
 
         this.addWindowListener(new WindowAdapter() {
+            @Override
             public void windowClosing(WindowEvent e) {
                 super.windowClosing(e);
                 timer.stop();
