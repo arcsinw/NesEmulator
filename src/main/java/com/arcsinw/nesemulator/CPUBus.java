@@ -18,7 +18,7 @@ public class CPUBus {
 
     public PPU ppu;
 
-    private APU apu;
+    private APU apu = new APU();
 
     private Cartridge cartridge;
 
@@ -75,7 +75,10 @@ public class CPUBus {
             // 0x2000 - 0x2007 是PPU的8个寄存器，其余是mirror
             // CPU通过寄存器读写PPU
             ppu.cpuWrite(address & 0x0007, byteData);
-        } else if (address == 0x4014) {
+        } else if ((address >= 0x4000 && address <= 0x4013) || address == 0x4015 || address == 0x4017) {
+            apu.write(address, data);
+        }
+        else if (address == 0x4014) {
             // 执行DMA操作
             dmaPage = byteData;
             dmaOffset = 0x00;
@@ -123,14 +126,15 @@ public class CPUBus {
     public void setPpu(PPU ppu) {
         this.ppu = ppu;
     }
+
     public void setCpu(CPU cpu) {
         this.cpu = cpu;
         cpu.setBus(this);
     }
 
-
     public void clock() {
         ppu.clock();
+        apu.clock();
 
         // PPU 的运行速度是 CPU 的3倍， 同步时钟周期
         if (cycles % 3 == 0) {
@@ -142,7 +146,7 @@ public class CPUBus {
                     // 开始DMA
                     if (cycles % 2 == 0) {
                         // 偶数时钟周期读
-                        dmaData = read(dmaPage << 8 | dmaOffset);
+                        dmaData = read((dmaPage & 0x00FF) << 8 | (dmaOffset & 0x00FF));
                     } else {
                         // 奇数时钟周期写
                        ppu.setOAMEntry(dmaOffset & 0x00FF, dmaData);

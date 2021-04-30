@@ -142,10 +142,12 @@ public class Emulator extends Frame implements PPU.FrameRenderCompletedEventList
 
     public static void main(String[] args) throws IOException {
         Emulator emulator = new Emulator();
-        String romPath = "/nestest.nes";
+//        String romPath = "/nestest.nes";
 //        String romPath = "/Pac-Man.nes";
 //        String romPath = "/Donkey Kong.nes";
-//        String romPath = "/896.nes";
+        String romPath = "/896.nes";
+//        String romPath = "/Contra.nes";
+//        String romPath = "/LoZ.nes";
 //        String romPath = "/palette_pal.nes";
 //        String romPath = "/ppu_2000_glitch.nes";
 //        String romPath = "/IceClimber.nes";

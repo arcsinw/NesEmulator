@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.stream.IntStream;
 
 /**
- * Picture Process Unit
+ * Picture Processing Unit
  * 型号是 2C02
  * 0x0000 ~ 0x3FFF
  * 0x4000 - 0xFFFF Mirrors
@@ -288,6 +288,8 @@ public class PPU {
      */
     byte[][] screen = new byte[240][256];
 
+    // region Sprite渲染
+
     public static class OAMEntry {
         /**
          * Y position of top of sprite
@@ -416,6 +418,14 @@ public class PPU {
     private byte[] spritePatternShifterLo = new byte[8];
 
     private byte[] spritePatternShifterHi = new byte[8];
+
+
+
+    private boolean spriteZeroHitPossible = false;
+    private boolean spriteZeroRendering = false;
+
+
+    // endregion
 
     /**
      * 为方便实现 卷轴滚动 虚拟的寄存器
@@ -659,22 +669,13 @@ public class PPU {
             case 0x0007:
                 // CPU 从 PPU读取数据 要慢一个 ppuRead
                 data = ppuDataBuffer;
-//                    ppuDataBuffer = ppuRead(tmpPpuAddress);
-//                ppuDataBuffer = ppuRead(vramAddress.getValue());
                 ppuDataBuffer = ppuRead(getPPUAddress(v));
 
-                // 读取Palettes没有延迟
-//                    if (tmpPpuAddress >= 0x3F00) {
-//                if (vramAddress.getValue() >= 0x3F00) {
-//                    data = ppuDataBuffer;
-//                }
                 if (getPPUAddress(v) >= 0x3F00) {
                     data = ppuDataBuffer;
                 }
 
-//                    tmpPpuAddress += (getPpuCtrl(PPUCtrl.IncrementMode) == 0 ? 1 : 32);
                 v = (v + (getPpuCtrl(PPUCtrl.IncrementMode) == 0 ? 1 : 32)) & 0x3FFF;
-//                vramAddress.setValue(vramAddress.getValue() + (getPpuCtrl(PPUCtrl.IncrementMode) == 0 ? 1 : 32));
                 break;
             default:
                 break;
@@ -694,9 +695,9 @@ public class PPU {
             // Name Tables 实际地址 0x2000 - 0x2FFF 其余是Mirror（只Mirror了0x2000 - 0x2EFF）
             // 最多有4个Name Table
             address &= 0x0FFF;
-            if (this.cartridge.header.mirror == Cartridge.Mirror.Vertical) // vertical mirror
+            if (this.cartridge.header.mirror == Cartridge.Mirror.Vertical)
             {
-                // Vertical
+                // Vertical mirror
                 if (address >= 0x0000 && address <= 0x03FF) {
                     nameTable[0][address & 0x03FF] = getUnsignedByte(data);
                 }
@@ -710,9 +711,9 @@ public class PPU {
                     nameTable[1][address & 0x03FF] = getUnsignedByte(data);
                 }
             }
-            else // horizontal mirror
+            else
             {
-                // Horizontal
+                // Horizontal mirror
                 if (address >= 0x0000 && address <= 0x03FF) {
                     nameTable[0][address & 0x03FF] = getUnsignedByte(data);
                 }
@@ -807,8 +808,6 @@ public class PPU {
         return data;
     }
 
-    // region 背景滚动相关字段
-
     /**
      * 扫描线编号,1帧有262条扫描线(0 - 261)
      * 0 - 239 可见扫描线
@@ -836,7 +835,16 @@ public class PPU {
 
     public boolean nmi = false;
 
+    // region 背景渲染相关字段
+
+    /**
+     * 暂存下一个预加载的tile id
+     */
     private int nextBackgroundTileId = 0x00;
+
+    /**
+     * 暂存下一个预加载的tile的attribute
+     */
     private byte nextBackgroundTileAttribute = 0x00;
 
     /**
@@ -872,13 +880,6 @@ public class PPU {
     public void loadBackgroundShifters() {
         backgroundPatternShifterHi = ((backgroundPatternShifterHi & 0xFF00) | (nextBackgroundTilePatternHi & 0x00FF)) & 0xFFFF;
         backgroundPatternShifterLo = ((backgroundPatternShifterLo & 0xFF00) | (nextBackgroundTilePatternLo & 0x00FF)) & 0xFFFF;
-
-        if (backgroundAttributeShifterHi != 0x00FF &&
-                backgroundAttributeShifterHi != 0xFFFF &&
-                backgroundAttributeShifterHi != 0x0000 &&
-                backgroundAttributeShifterHi != 0xFF00) {
-            int a = 00;
-        }
 
         backgroundAttributeShifterHi = ((backgroundAttributeShifterHi & 0xFF00) | ((nextBackgroundTileAttribute & 0x02) != 0 ? 0xFF : 0x00)) & 0xFFFF;
         backgroundAttributeShifterLo = ((backgroundAttributeShifterLo & 0xFF00) | ((nextBackgroundTileAttribute & 0x01) != 0 ? 0xFF : 0x00)) & 0xFFFF;
@@ -964,10 +965,6 @@ public class PPU {
         return b;
     }
 
-    private boolean spriteZeroHitPossible = false;
-    private boolean spriteZeroRendering = false;
-
-
     /**
      * 参考http://wiki.nesdev.com/w/images/4/4f/Ppu.svg
      * 262条扫描线 （0~261）  (0~239)是可见扫描线
@@ -1011,6 +1008,10 @@ public class PPU {
                         foregroundPalette = (byte) ((scanLineSprite.get(i).attribute & 0x03) + 0x04);
                         foregroundPriority = (byte) ((scanLineSprite.get(i).attribute & 0x20) != 0 ? 1 : 0);
 
+                        if (foregroundPixel < 0 || foregroundPalette < 0 || foregroundPriority < 0) {
+                            int a = 0;
+                        }
+
                         if (foregroundPixel != 0) {
                             if (i == 0) {
                                 spriteZeroRendering = true;
@@ -1025,9 +1026,6 @@ public class PPU {
 
             // 混合前景色和背景色
             byte pixel = backgroundPixel, palette = backgroundPalette;
-//
-//            pixel = foregroundPixel;
-//            palette = foregroundPalette;
 
             if (foregroundPixel != 0 && foregroundPriority == 0) {
                 pixel = foregroundPixel;
@@ -1052,20 +1050,11 @@ public class PPU {
             screen[scanLine][cycles - 1] = getColorFromPalette(palette, pixel);
         }
 
-
-        if (v != 0 && scanLine == 261 && cycles == 321) {
-            int a = 0;
-        }
-
         // 处理可视扫描线和pre-render扫描线中的 8个cycle的循环
         if ((scanLine < 240) || (scanLine == 261)) {
-            // Background Render
+            // --------------Background Render--------------
             if (scanLine == 0 && cycles == 0) {
                 cycles = 1;
-            }
-
-            if (scanLine == 0 && cycles == 1) {
-                int b = 0;
             }
 
             if ((cycles >= 1 && cycles <= 256) || (cycles >= 321 && cycles <= 336)) {
@@ -1082,9 +1071,6 @@ public class PPU {
 
                         // 加载Name table
                         nextBackgroundTileId = ppuRead(getTileAddress(v)) & 0x00FF;
-                        if (nextBackgroundTileId == 0x16) {
-                            int b = 0;
-                        }
                         break;
                     case 3:
                         // 读取Attribute table中的1字节（Attribute table中1字节控制一个4x4tile 的大Tile的颜色）
@@ -1098,6 +1084,7 @@ public class PPU {
 
                         nextBackgroundTileAttribute = ppuRead(getAttributeAddress(v));
 
+                        // 从Attribute Table的1字节中选出2 bit
                         if (((v >>> 5) & 0x02) != 0) {
                             nextBackgroundTileAttribute >>>= 4;
                         }
@@ -1105,16 +1092,6 @@ public class PPU {
                         if ((v & 0x02) != 0) {
                             nextBackgroundTileAttribute >>>= 2;
                         }
-
-                        // 从Attribute Table的1字节中选出2 bit
-
-//                        if ((vramAddress.coarseY & 0x02) != 0) {
-//                            nextBackgroundTileAttribute >>>= 4;
-//                        }
-//
-//                        if ((vramAddress.coarseX & 0x02) != 0) {
-//                            nextBackgroundTileAttribute >>>= 2;
-//                        }
 
                         nextBackgroundTileAttribute &= 0x03;
                         break;
@@ -1142,7 +1119,7 @@ public class PPU {
             }
 
             if (cycles == 257) {
-//                loadBackgroundShifters();
+                loadBackgroundShifters();
                 transferAddressX();
             }
 
@@ -1151,21 +1128,23 @@ public class PPU {
                 nextBackgroundTileId = ppuRead(getTileAddress(v));
             }
 
-            // Foreground Render
+            // --------------Foreground Render--------------
 
-            // evaluation
-
-            if (scanLine < 240 && cycles == 257) {
+            // evaluation  获取下一条扫描线会经过的Sprite (一条扫描线上最多能渲染8个Sprite，超过8时设置SpriteOverflow)
+            if (scanLine >= 0 && scanLine <= 260 && cycles == 257) {
                 // clear Sprite OAM
                 scanLineSprite.clear();
+
+//                IntStream.range(0, 8).forEach(i -> {
+//                    scanLineSprite.set(i, new OAMEntry());
+//                });
                 spriteCount = 0;
 
-                for (int i = 0; i < 8; i++) {
+                IntStream.range(0, 8).forEach(i -> {
                     spritePatternShifterLo[i] = 0;
                     spritePatternShifterHi[i] = 0;
-                }
+                });
 
-                // 获取当前扫描线会经过的Sprite (一条扫描线上最多能渲染8个Sprite，超过8时设置SpriteOverflow)
                 int index = 0;
                 spriteZeroHitPossible = false;
                 while (index < 64 && spriteCount < 9) {
@@ -1177,18 +1156,22 @@ public class PPU {
                             }
 
                             scanLineSprite.add(new OAMEntry(oam[index]));
-                            spriteCount++;
                         }
+
+                        spriteCount++;
                     }
 
                     index++;
                 }
 
-                setPpuStatus(PPUStatus.SpriteOverflow, (spriteCount > 8 ? 1 : 0));
+                if (scanLineSprite.size() > 0) {
+                    int a = 0;
+                }
+                setPpuStatus(PPUStatus.SpriteOverflow, (spriteCount >= 8 ? 1 : 0));
             }
 
             if (cycles == 340) {
-                for (int i = 0; i < spriteCount; i++) {
+                for (int i = 0; i < scanLineSprite.size(); i++) {
                     byte spritePatternBitsLo = 0, spritePatternBitsHi = 0;
                     int spritePatternAddressLo = 0, spritePatternAddressHi = 0;
 
@@ -1230,6 +1213,10 @@ public class PPU {
                                         | ((scanLine - scanLineSprite.get(i).y) & 0x07);
                             }
                         }
+                    }
+
+                    if (spritePatternAddressHi < 0 || spritePatternAddressLo < 0) {
+                        int a = 0;
                     }
 
                     spritePatternAddressHi = spritePatternAddressLo + 8;
@@ -1279,7 +1266,6 @@ public class PPU {
         }
 
         if (cycles == 338 || cycles == 340) {
-//            nextBackgroundTileId = ppuRead(0x2000 | (vramAddress.getValue() & 0x0FFF));
             nextBackgroundTileId = ppuRead(0x2000 | (getPPUAddress(v) & 0x0FFF));
         }
 
