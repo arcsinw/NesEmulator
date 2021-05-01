@@ -1,7 +1,10 @@
 package com.arcsinw.nesemulator;
 
 import com.arcsinw.nesemulator.ui.*;
+import com.arcsinw.nesemulator.utils.XboxController;
+import com.github.strikerx3.jxinput.enums.XInputButton;
 
+import javax.swing.*;
 import java.awt.*;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
@@ -13,10 +16,11 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
 
-public class Emulator extends Frame implements PPU.FrameRenderCompletedEventListener {
+public class Emulator extends JFrame implements PPU.FrameRenderCompletedEventListener {
     private static CPU cpu = new CPU();
     private static PPU ppu = new PPU();
     private static CPUBus cpuBus = new CPUBus();
+    private static XboxController controller = new XboxController();
 
     private static Cartridge cartridge;
     private BufferedImage image = new BufferedImage(256, 240, BufferedImage.TYPE_INT_RGB);
@@ -85,7 +89,7 @@ public class Emulator extends Frame implements PPU.FrameRenderCompletedEventList
 
     private Panel panel = new Panel();
 
-    private final HashMap<Integer, Joypad.ButtonFlag> KEY_MAPPING = new HashMap() {
+    private final HashMap<Integer, Joypad.ButtonFlag> KEYBOARD_MAPPING = new HashMap() {
         {
             put(KeyEvent.VK_J, Joypad.ButtonFlag.A);
             put(KeyEvent.VK_K, Joypad.ButtonFlag.B);
@@ -98,6 +102,19 @@ public class Emulator extends Frame implements PPU.FrameRenderCompletedEventList
         }
     };
 
+    private final HashMap<XInputButton, Joypad.ButtonFlag> XBOXCONTROLLER_MAPPING = new HashMap() {
+        {
+            put(XInputButton.A, Joypad.ButtonFlag.A);
+            put(XInputButton.X, Joypad.ButtonFlag.B);
+            put(XInputButton.BACK, Joypad.ButtonFlag.Select);
+            put(XInputButton.START, Joypad.ButtonFlag.Start);
+            put(XInputButton.DPAD_UP, Joypad.ButtonFlag.Up);
+            put(XInputButton.DPAD_DOWN, Joypad.ButtonFlag.Down);
+            put(XInputButton.DPAD_LEFT, Joypad.ButtonFlag.Left);
+            put(XInputButton.DPAD_RIGHT, Joypad.ButtonFlag.Right);
+        }
+    };
+
     public Emulator() {
         setTitle("NesEmulator");
         setBackground(Color.black);
@@ -106,6 +123,8 @@ public class Emulator extends Frame implements PPU.FrameRenderCompletedEventList
         panel.setPreferredSize(new Dimension(SCREEN_WIDTH * SCREEN_RATIO, SCREEN_HEIGHT * SCREEN_RATIO));
         add(panel);
         pack();
+
+        setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
 
         addWindowListener(new WindowAdapter() {
             @Override
@@ -120,8 +139,8 @@ public class Emulator extends Frame implements PPU.FrameRenderCompletedEventList
             public void keyPressed(KeyEvent e) {
                 int keyCode = e.getKeyCode();
 
-                if (KEY_MAPPING.containsKey(keyCode)) {
-                    cpuBus.joypad1.setButton(KEY_MAPPING.get(keyCode), 1);
+                if (KEYBOARD_MAPPING.containsKey(keyCode)) {
+                    cpuBus.joypad1.setButton(KEYBOARD_MAPPING.get(keyCode), 1);
                 }
             }
 
@@ -129,9 +148,15 @@ public class Emulator extends Frame implements PPU.FrameRenderCompletedEventList
             public void keyReleased(KeyEvent e) {
                 int keyCode = e.getKeyCode();
 
-                if (KEY_MAPPING.containsKey(keyCode)) {
-                    cpuBus.joypad1.setButton(KEY_MAPPING.get(keyCode), 0);
+                if (KEYBOARD_MAPPING.containsKey(keyCode)) {
+                    cpuBus.joypad1.setButton(KEYBOARD_MAPPING.get(keyCode), 0);
                 }
+            }
+        });
+
+        controller.addListener((button, pressed) -> {
+            if (XBOXCONTROLLER_MAPPING.containsKey(button)) {
+                cpuBus.joypad1.setButton(XBOXCONTROLLER_MAPPING.get(button), pressed ? 1 : 0);
             }
         });
 

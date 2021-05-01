@@ -1008,10 +1008,6 @@ public class PPU {
                         foregroundPalette = (byte) ((scanLineSprite.get(i).attribute & 0x03) + 0x04);
                         foregroundPriority = (byte) ((scanLineSprite.get(i).attribute & 0x20) != 0 ? 1 : 0);
 
-                        if (foregroundPixel < 0 || foregroundPalette < 0 || foregroundPriority < 0) {
-                            int a = 0;
-                        }
-
                         if (foregroundPixel != 0) {
                             if (i == 0) {
                                 spriteZeroRendering = true;
