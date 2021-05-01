@@ -1025,11 +1025,20 @@ public class PPU {
             }
 
             // 混合前景色和背景色
-            byte pixel = backgroundPixel, palette = backgroundPalette;
+            byte pixel = foregroundPixel, palette = foregroundPalette;
 
-            if (foregroundPixel != 0 && foregroundPriority == 0) {
-                pixel = foregroundPixel;
-                palette = foregroundPalette;
+            if (foregroundPixel == 0) {
+                pixel = backgroundPixel;
+                palette = backgroundPalette;
+            } else if (foregroundPixel > 0 && backgroundPixel > 0) {
+                // Sprite显示在背景后面
+                if (foregroundPriority == 1) {
+                     pixel = backgroundPixel;
+                     palette = backgroundPalette;
+                 } else {
+                    pixel = foregroundPixel;
+                    palette = foregroundPalette;
+                }
             }
 
             // Sprite Zero Hit Detection
