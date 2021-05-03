@@ -20,7 +20,7 @@
         </plugins>
     </build>
 
-    <!--    https://github.com/StrikerX3/JXInput-->
+    <!--    https://github.com/StrikerX3/JXInput    -->
     <repositories>
         <repository>
             <id>jitpack.io</id>
