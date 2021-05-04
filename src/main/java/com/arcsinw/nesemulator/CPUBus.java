@@ -1,6 +1,8 @@
 package com.arcsinw.nesemulator;
 
 
+import com.arcsinw.nesemulator.input.Joypad;
+
 /**
  * CPU总线
  * 16bit 0x0000 ~ 0xFFFF 共 64KB
@@ -40,7 +42,6 @@ public class CPUBus {
     public Joypad joypad2 = new Joypad();
 
     // endregion
-
 
     // region DMA
 

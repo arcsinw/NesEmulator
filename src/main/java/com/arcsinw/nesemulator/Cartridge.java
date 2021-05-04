@@ -1,6 +1,8 @@
 package com.arcsinw.nesemulator;
 
-import java.io.FileInputStream;
+import com.arcsinw.nesemulator.mapper.AbstractMapper;
+import com.arcsinw.nesemulator.mapper.MapperFactory;
+
 import java.io.IOException;
 import java.io.InputStream;
 
@@ -9,9 +11,6 @@ import java.io.InputStream;
  * http://fms.komkon.org/EMUL8/NES.html
  */
 public class Cartridge {
-
-    private final String INVALID_NES_ROM_MESSAGE = "非法的nes文件";
-
     /**
      * 镜像类型
      */
@@ -101,17 +100,25 @@ public class Cartridge {
         }
     }
 
-    Header header;
+    private final String INVALID_NES_ROM_MESSAGE = "非法的nes文件";
 
-    byte[] trainer;
+    // region 字段
+
+    public Header header;
+
+    private AbstractMapper mapper;
+
+    private byte[] trainer;
 
     /**
      * Program
+     * 16KB per bank
      */
     byte[] prg;
 
     /**
      * Character
+     * 8KB per bank
      */
     public byte[] chr;
 
@@ -121,6 +128,8 @@ public class Cartridge {
      */
     byte[] sram;
 
+    // endregion
+
     void check(boolean result, String errorMessage) {
         if (!result) {
             throw new Error(errorMessage);
@@ -128,8 +137,12 @@ public class Cartridge {
     }
 
     public void cpuWrite(int address, int data) {
-        if (address >= 0x8000 && address <= 0xFFFF) {
-            prg[address & (header.prgBanksCount > 1 ? 0x7FFF : 0x3FFF )] = (byte) data;
+//        if (address >= 0x8000 && address <= 0xFFFF) {
+//            prg[address & (header.prgBanksCount > 1 ? 0x7FFF : 0x3FFF )] = (byte) data;
+//        }
+
+        if (mapper != null) {
+            mapper.write(address, data);
         }
     }
 
@@ -146,8 +159,12 @@ public class Cartridge {
         // if PRGROM is 32KB
         //     CPU Address Bus          PRG ROM
         //     0x8000 -> 0xFFFF: Map    0x0000 -> 0x7FFF
-        if (address >= 0x8000 && address <= 0xFFFF) {
-            return prg[address & (header.prgBanksCount > 1 ? 0x7FFF : 0x3FFF)];
+//        if (address >= 0x8000 && address <= 0xFFFF) {
+//            return prg[address & (header.prgBanksCount > 1 ? 0x7FFF : 0x3FFF)];
+//        }
+
+        if (mapper != null) {
+            return mapper.read(address);
         }
 
         return 0x00;
@@ -200,6 +217,12 @@ public class Cartridge {
         for (int i = 0; i < chrCount; i++) {
             inputStream.read(chr, i * 8192, 8192);
         }
+
+        mapper = MapperFactory.getMapper(header.mapperNo);
+        if (mapper != null) {
+            mapper.setPrg(prg);
+            mapper.setChr(chr);
+        }
     }
 
     public Cartridge(String filePath) throws IOException {
@@ -207,8 +230,8 @@ public class Cartridge {
         InputStream inputStream = Cartridge.class.getResourceAsStream(filePath);
 //        URL url = Cartridge.class.getResource("/");
 //        System.out.println(url.getPath());
-        byte[] headerBytes = new byte[16];
 
+        byte[] headerBytes = new byte[16];
         inputStream.read(headerBytes, 0, 16);
         header = new Header(headerBytes);
 
@@ -227,6 +250,12 @@ public class Cartridge {
         chr = new byte[chrCount * 8192];
         for (int i = 0; i < chrCount; i++) {
             inputStream.read(chr, i * 8192, 8192);
+        }
+
+        mapper = MapperFactory.getMapper(header.mapperNo);
+        if (mapper != null) {
+            mapper.setPrg(prg);
+            mapper.setChr(chr);
         }
     }
 }

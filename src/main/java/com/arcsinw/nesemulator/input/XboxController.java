@@ -1,4 +1,4 @@
-package com.arcsinw.nesemulator.utils;
+package com.arcsinw.nesemulator.input;
 
 import com.github.strikerx3.jxinput.*;
 import com.github.strikerx3.jxinput.enums.XInputButton;
@@ -8,12 +8,26 @@ import com.github.strikerx3.jxinput.listener.SimpleXInputDeviceListener;
 import javax.swing.*;
 import java.util.ArrayList;
 import java.util.EventListener;
+import java.util.HashMap;
 
 /**
  * Xbox手柄输入支持
  * https://github.com/StrikerX3/JXInput
  */
 public class XboxController {
+    public static final HashMap<XInputButton, Joypad.ButtonFlag> XBOXCONTROLLER_MAPPING = new HashMap() {
+        {
+            put(XInputButton.A, Joypad.ButtonFlag.A);
+            put(XInputButton.X, Joypad.ButtonFlag.B);
+            put(XInputButton.BACK, Joypad.ButtonFlag.Select);
+            put(XInputButton.START, Joypad.ButtonFlag.Start);
+            put(XInputButton.DPAD_UP, Joypad.ButtonFlag.Up);
+            put(XInputButton.DPAD_DOWN, Joypad.ButtonFlag.Down);
+            put(XInputButton.DPAD_LEFT, Joypad.ButtonFlag.Left);
+            put(XInputButton.DPAD_RIGHT, Joypad.ButtonFlag.Right);
+        }
+    };
+
     private XInputDevice device = null;
 
     /**

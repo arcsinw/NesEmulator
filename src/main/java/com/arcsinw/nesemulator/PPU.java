@@ -21,7 +21,7 @@ public class PPU {
      * 0x0000 - 0x0FFF Pattern Table 0
      * 0x1000 - 0x1FFF Pattern Table 1
      */
-    private byte[][] patternTable = new byte[2][256 * 16];
+    private byte[][] patternTable = new byte[2][4096];
 
     /**
      * Name Table, 命名表 (VRAM, CIRAM)
@@ -419,11 +419,8 @@ public class PPU {
 
     private byte[] spritePatternShifterHi = new byte[8];
 
-
-
     private boolean spriteZeroHitPossible = false;
     private boolean spriteZeroRendering = false;
-
 
     // endregion
 
@@ -507,8 +504,8 @@ public class PPU {
 
     public void setCartridge(Cartridge cartridge) {
         this.cartridge = cartridge;
-        System.arraycopy(this.cartridge.chr, 0, patternTable[0], 0, 4096);
-        System.arraycopy(this.cartridge.chr, 4096, patternTable[1], 0, 4096);
+//        System.arraycopy(this.cartridge.chr, 0, patternTable[0], 0, 4096);
+//        System.arraycopy(this.cartridge.chr, 4096, patternTable[1], 0, 4096);
     }
 
     /**
@@ -542,7 +539,6 @@ public class PPU {
     public byte getColorFromPalette(int paletteId, int pixelId) {
         return ppuRead(0x3F00 + (paletteId << 2) + pixelId);
     }
-
 
     private int getTileAddress(int v) {
         return 0x2000 | (v & 0x0FFF);
@@ -614,7 +610,7 @@ public class PPU {
             // PPU Address
             case 0x0006:
                 /**
-                 * CPU 和 PPU在不同的总线上，无法直接访问内存，通过 0x0006和0x0007来实现内存的读写
+                 * CPU和PPU在不同的总线上，无法直接访问内存，通过 0x0006和0x0007来实现内存的读写
                  * PPU的地址为16位，PPU Data寄存器是8位，需要进行两次写入才能设置地址
                  * 先写入高地址 再写入低地址
                  */

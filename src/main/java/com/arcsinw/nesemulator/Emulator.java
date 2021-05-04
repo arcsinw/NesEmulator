@@ -1,7 +1,8 @@
 package com.arcsinw.nesemulator;
 
+import com.arcsinw.nesemulator.input.Joypad;
 import com.arcsinw.nesemulator.ui.*;
-import com.arcsinw.nesemulator.utils.XboxController;
+import com.arcsinw.nesemulator.input.XboxController;
 import com.github.strikerx3.jxinput.enums.XInputButton;
 
 import javax.swing.*;
@@ -102,19 +103,6 @@ public class Emulator extends JFrame implements PPU.FrameRenderCompletedEventLis
         }
     };
 
-    private final HashMap<XInputButton, Joypad.ButtonFlag> XBOXCONTROLLER_MAPPING = new HashMap() {
-        {
-            put(XInputButton.A, Joypad.ButtonFlag.A);
-            put(XInputButton.X, Joypad.ButtonFlag.B);
-            put(XInputButton.BACK, Joypad.ButtonFlag.Select);
-            put(XInputButton.START, Joypad.ButtonFlag.Start);
-            put(XInputButton.DPAD_UP, Joypad.ButtonFlag.Up);
-            put(XInputButton.DPAD_DOWN, Joypad.ButtonFlag.Down);
-            put(XInputButton.DPAD_LEFT, Joypad.ButtonFlag.Left);
-            put(XInputButton.DPAD_RIGHT, Joypad.ButtonFlag.Right);
-        }
-    };
-
     public Emulator() {
         setTitle("NesEmulator");
         setBackground(Color.black);
@@ -155,8 +143,8 @@ public class Emulator extends JFrame implements PPU.FrameRenderCompletedEventLis
         });
 
         controller.addListener((button, pressed) -> {
-            if (XBOXCONTROLLER_MAPPING.containsKey(button)) {
-                cpuBus.joypad1.setButton(XBOXCONTROLLER_MAPPING.get(button), pressed ? 1 : 0);
+            if (XboxController.XBOXCONTROLLER_MAPPING.containsKey(button)) {
+                cpuBus.joypad1.setButton(XboxController.XBOXCONTROLLER_MAPPING.get(button), pressed ? 1 : 0);
             }
         });
 

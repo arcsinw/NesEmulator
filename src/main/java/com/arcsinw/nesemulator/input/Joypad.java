@@ -1,7 +1,4 @@
-package com.arcsinw.nesemulator;
-
-import java.awt.*;
-import java.awt.event.KeyEvent;
+package com.arcsinw.nesemulator.input;
 
 /**
  * 手柄控制器
@@ -17,7 +14,7 @@ public class Joypad {
 
     private boolean logging = false;
 
-    enum ButtonFlag {
+    public enum ButtonFlag {
         Right(1 << 7),
         Left(1 << 6),
         Down(1 << 5),
@@ -51,9 +48,6 @@ public class Joypad {
             if ((data & 0x01) != 0) {
                 // 向0x4016写入0x01，将手柄设置为 选通
                 index = 0;
-            } else {
-                // 写入0x00
-
             }
         }
 
