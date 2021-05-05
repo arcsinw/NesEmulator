@@ -40,4 +40,6 @@ public abstract class AbstractMapper {
     public abstract void write(int address, int data);
 
     public abstract byte read(int address);
+
+    public void reset() {};
 }

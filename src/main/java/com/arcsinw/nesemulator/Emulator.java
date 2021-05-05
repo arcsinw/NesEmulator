@@ -1,16 +1,13 @@
 package com.arcsinw.nesemulator;
 
 import com.arcsinw.nesemulator.input.Joypad;
-import com.arcsinw.nesemulator.ui.*;
 import com.arcsinw.nesemulator.input.XboxController;
-import com.github.strikerx3.jxinput.enums.XInputButton;
+import com.arcsinw.nesemulator.ui.*;
 
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
-import java.awt.event.WindowAdapter;
-import java.awt.event.WindowEvent;
 import java.awt.image.BufferedImage;
 import java.awt.image.DataBufferInt;
 import java.io.IOException;
@@ -26,6 +23,7 @@ public class Emulator extends JFrame implements PPU.FrameRenderCompletedEventLis
     private static Cartridge cartridge;
     private BufferedImage image = new BufferedImage(256, 240, BufferedImage.TYPE_INT_RGB);
 
+    // region 常量
     private static final int SCREEN_WIDTH = 256;
     private static final int SCREEN_HEIGHT = 240;
     private static final int SCREEN_RATIO = 3;
@@ -33,6 +31,10 @@ public class Emulator extends JFrame implements PPU.FrameRenderCompletedEventLis
     private static final int CONTENT_WIDTH = 256;
     private static final int CONTENT_HEIGHT = 240;
     private static final int CONTENT_RATIO = 3;
+
+    private static final int FPS = 60;
+
+    // endregion
 
     private void addMenuBar() {
         MenuBar menuBar = new MenuBar();
@@ -114,14 +116,6 @@ public class Emulator extends JFrame implements PPU.FrameRenderCompletedEventLis
 
         setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
 
-        addWindowListener(new WindowAdapter() {
-            @Override
-            public void windowClosing(WindowEvent e) {
-                super.windowClosing(e);
-                dispose();
-            }
-        });
-
         panel.addKeyListener(new KeyAdapter() {
             @Override
             public void keyPressed(KeyEvent e) {
@@ -158,7 +152,7 @@ public class Emulator extends JFrame implements PPU.FrameRenderCompletedEventLis
 //        String romPath = "/nestest.nes";
 //        String romPath = "/Pac-Man.nes";
 //        String romPath = "/Donkey Kong.nes";
-        String romPath = "/896.nes";
+//        String romPath = "/896.nes";
 //        String romPath = "/Contra.nes";
 //        String romPath = "/LoZ.nes";
 //        String romPath = "/palette_pal.nes";
@@ -182,19 +176,19 @@ public class Emulator extends JFrame implements PPU.FrameRenderCompletedEventLis
             } else {
                 long elapsed = System.currentTimeMillis() - start;
                 long wait = 1000 / FPS - elapsed;
-                emulator.frameRenderCompleted = false;
-                try {
-                    if (wait > 0) {
+                if (wait > 0) {
+                    try {
                         Thread.sleep(wait);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
                     }
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
                 }
+
+                emulator.frameRenderCompleted = false;
             }
         }
     }
 
-    private static final int FPS = 60;
 
     public void showPatternTableFrame() {
         if (cartridge != null) {

@@ -47,6 +47,12 @@ public class UxROM extends AbstractMapper {
         return data;
     }
 
+    @Override
+    public void reset() {
+        bank0Offset = 0;
+        bank1Offset = ((prg.length / 16384) - 1) * 0x4000;
+    }
+
     /**
      * 切换$8000 ~ $BFFF指向的Bank
      * 7  bit  0

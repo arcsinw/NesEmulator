@@ -213,15 +213,20 @@ public class Cartridge {
         }
 
         int chrCount = header.chrBanksCount;
-        chr = new byte[chrCount * 8192];
-        for (int i = 0; i < chrCount; i++) {
-            inputStream.read(chr, i * 8192, 8192);
+        if (chrCount == 0) {
+            chr = new byte[8192];
+        } else {
+            chr = new byte[chrCount * 8192];
+            for (int i = 0; i < chrCount; i++) {
+                inputStream.read(chr, i * 8192, 8192);
+            }
         }
 
         mapper = MapperFactory.getMapper(header.mapperNo);
         if (mapper != null) {
             mapper.setPrg(prg);
             mapper.setChr(chr);
+            mapper.reset();
         }
     }
 
@@ -247,15 +252,20 @@ public class Cartridge {
         }
 
         int chrCount = header.chrBanksCount;
-        chr = new byte[chrCount * 8192];
-        for (int i = 0; i < chrCount; i++) {
-            inputStream.read(chr, i * 8192, 8192);
+        if (chrCount == 0) {
+            chr = new byte[8192];
+        } else {
+            chr = new byte[chrCount * 8192];
+            for (int i = 0; i < chrCount; i++) {
+                inputStream.read(chr, i * 8192, 8192);
+            }
         }
 
         mapper = MapperFactory.getMapper(header.mapperNo);
         if (mapper != null) {
             mapper.setPrg(prg);
             mapper.setChr(chr);
+            mapper.reset();
         }
     }
 }

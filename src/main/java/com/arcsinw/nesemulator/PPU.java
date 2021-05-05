@@ -425,64 +425,14 @@ public class PPU {
     // endregion
 
     /**
-     * 为方便实现 卷轴滚动 虚拟的寄存器
-     * yyy NN YYYYY XXXXX   15 bit
-     * ||| || ||||| +++++-- coarse X scroll
-     * ||| || +++++-------- coarse Y scroll
-     * ||| ++-------------- name table select
-     * +++----------------- fine Y scroll
-     */
-    private class LoopyRegister {
-        /**
-         * 5 bit
-         */
-        byte coarseX = 0;
-        /**
-         * 5 bit
-         */
-        byte coarseY = 0;
-        /**
-         * 1 bit, 1 << 10
-         */
-        byte nameTableX = 0;
-        /**
-         * 1 bit, 1 << 11
-         */
-        byte nameTableY = 0;
-        /**
-         * 3 bit
-         */
-        byte fineY = 0;
-
-        public void setValue(int value) {
-            coarseX = (byte) (value & 0x1F);
-            coarseY = (byte) ((value >>> 5) & 0x1F);
-            nameTableX = (byte) ((value >> 10) & 0x01);
-            nameTableY = (byte) ((value >> 11) & 0x01);
-            fineY = (byte) ((value >> 12) & 0x07);
-        }
-
-        public int getValue() {
-            return (coarseX & 0x1F) |
-                    ((coarseY & 0x1F) << 5) |
-                    ((nameTableX & 0x01) << 10) |
-                    ((nameTableY & 0x01) << 11) |
-                    ((fineY & 0x07) << 12);
-        }
-    }
-
-//    private LoopyRegister vramAddress = new LoopyRegister();
-//    private LoopyRegister tmpVramAddress = new LoopyRegister();
-
-    /**
      * Fine X scroll (3 bits)
      */
     private int fineX = 0x00;
 
     /**
-     * yyy NN YYYYY XXXXX
-     * ||| || ||||| +++++-- coarse X scroll (8x8 tile)
-     * ||| || +++++-------- coarse Y scroll
+     * yyy NN YYYYY XXXXX   15 bit
+     * ||| || ||||| +++++-- coarse X scroll (8x8 tile的x坐标, 0~31)
+     * ||| || +++++-------- coarse Y scroll (8x8 tile的y坐标, 0~29)
      * ||| ++-------------- nametable select
      * +++----------------- fine Y scroll
      */

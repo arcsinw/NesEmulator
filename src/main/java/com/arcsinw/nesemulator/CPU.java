@@ -11,6 +11,7 @@ import java.util.Map;
 public class CPU {
 
     // region 字段
+
     private int fetched = 0x00;
 
     private int absoluteAddress = 0x0000;
@@ -20,12 +21,6 @@ public class CPU {
 
     private CPUBus bus;
 
-    /**
-     * 卡带
-     */
-    private Cartridge cartridge;
-
-    // debug only
     int clockCount = 0;
     boolean logging = false;
 
