@@ -454,8 +454,10 @@ public class PPU {
 
     public void setCartridge(Cartridge cartridge) {
         this.cartridge = cartridge;
-//        System.arraycopy(this.cartridge.chr, 0, patternTable[0], 0, 4096);
-//        System.arraycopy(this.cartridge.chr, 4096, patternTable[1], 0, 4096);
+        if (this.cartridge.chr.length >= 8192) {
+            System.arraycopy(this.cartridge.chr, 0, patternTable[0], 0, 4096);
+            System.arraycopy(this.cartridge.chr, 4096, patternTable[1], 0, 4096);
+        }
     }
 
     /**
@@ -552,7 +554,6 @@ public class PPU {
                     isFirstPpuAddress = false;
                 } else {
                     t = (t & ~0x7000) | ((data & 0x07) << 12);
-//                    t = (t & ~0x03E0) | (((data & 0x00FF) >>> 3) << 5);
                     t = (t & ~0x3E0) | (((data & 0x00FF) & ~7) << 2);
                     isFirstPpuAddress = true;
                 }

@@ -126,7 +126,7 @@ public class Cartridge {
      * SRAM
      * 0x6000 - 0x7FFF
      */
-    byte[] sram;
+    byte[] sram = new byte[8192];
 
     // endregion
 
@@ -226,6 +226,7 @@ public class Cartridge {
         if (mapper != null) {
             mapper.setPrg(prg);
             mapper.setChr(chr);
+            mapper.setSram(sram);
             mapper.reset();
         }
     }
@@ -265,6 +266,7 @@ public class Cartridge {
         if (mapper != null) {
             mapper.setPrg(prg);
             mapper.setChr(chr);
+            mapper.setSram(sram);
             mapper.reset();
         }
     }

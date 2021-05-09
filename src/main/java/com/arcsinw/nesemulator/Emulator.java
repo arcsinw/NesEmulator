@@ -138,7 +138,7 @@ public class Emulator extends JFrame implements PPU.FrameRenderCompletedEventLis
 
         controller.addListener((button, pressed) -> {
             if (XboxController.XBOXCONTROLLER_MAPPING.containsKey(button)) {
-                cpuBus.joypad1.setButton(XboxController.XBOXCONTROLLER_MAPPING.get(button), pressed ? 1 : 0);
+                cpuBus.joypad2.setButton(XboxController.XBOXCONTROLLER_MAPPING.get(button), pressed ? 1 : 0);
             }
         });
 
@@ -154,7 +154,12 @@ public class Emulator extends JFrame implements PPU.FrameRenderCompletedEventLis
 //        String romPath = "/Donkey Kong.nes";
 //        String romPath = "/896.nes";
 //        String romPath = "/Contra.nes";
+//        String romPath = "/Contra (USA).nes";
 //        String romPath = "/LoZ.nes";
+//        String romPath = "/cpu_dummy_writes_ppumem.nes";
+//        String romPath = "/Mega Man 2.nes";
+//        String romPath = "/Metroid.nes";
+        String romPath = "/cpu_dummy_writes_oam.nes";
 //        String romPath = "/palette_pal.nes";
 //        String romPath = "/ppu_2000_glitch.nes";
 //        String romPath = "/IceClimber.nes";

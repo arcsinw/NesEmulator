@@ -22,9 +22,17 @@ public abstract class AbstractMapper {
      */
     protected byte[] chr;
 
+    protected byte[] sram;
+
     public AbstractMapper(byte[] prg, byte[] chr) {
         this.prg = prg;
         this.chr = chr;
+    }
+
+    public AbstractMapper(byte[] prg, byte[] chr, byte[] sram) {
+        this.prg = prg;
+        this.chr = chr;
+        this.sram = sram;
     }
 
     public AbstractMapper() { }
@@ -35,6 +43,10 @@ public abstract class AbstractMapper {
 
     public void setChr(byte[] chr) {
         this.chr = chr;
+    }
+
+    public void setSram(byte[] sram) {
+        this.sram = sram;
     }
 
     public abstract void write(int address, int data);
