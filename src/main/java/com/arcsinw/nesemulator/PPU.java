@@ -921,7 +921,7 @@ public class PPU {
         // 可视区域，每个cycle更新1个像素
         // 扫描线(0, 239) cycles(1, 256)
         if (scanLine < 240 && cycles >= 1 && cycles <= 256) {
-            // background render
+            // region background render
             byte backgroundPixel = 0x00, backgroundPalette = 0x00;
 
             if (getPpuMask(PPUMask.BackgroundEnable) != 0) {
@@ -939,7 +939,9 @@ public class PPU {
                 backgroundPalette = (byte) (colorBit2 | (colorBit3 << 1));
             }
 
-            // foreground render
+            // endregion
+
+            // region foreground render
             byte foregroundPixel = 0x00, foregroundPalette = 0x00, foregroundPriority = 0x00;
 
             if (getPpuMask(PPUMask.SpriteEnable) != 0) {
@@ -967,7 +969,9 @@ public class PPU {
                 }
             }
 
-            // 混合前景色和背景色
+            // endregion
+
+            // region 混合前景色和背景色
             byte pixel = foregroundPixel, palette = foregroundPalette;
 
             if (foregroundPixel == 0) {
@@ -983,6 +987,8 @@ public class PPU {
                     palette = foregroundPalette;
                 }
             }
+
+            // endregion
 
             // Sprite Zero Hit Detection
             if (spriteZeroRendering && spriteZeroHitPossible) {
@@ -1186,7 +1192,6 @@ public class PPU {
                 }
             }
         }
-
 
         // Post-render line, do nothing
         if (scanLine == 240) {}

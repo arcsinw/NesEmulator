@@ -20,8 +20,10 @@ public class Emulator extends JFrame implements PPU.FrameRenderCompletedEventLis
     private static CPUBus cpuBus = new CPUBus();
     private static XboxController controller = new XboxController();
 
-    private static Cartridge cartridge;
+    private static Cartridge cartridge = null;
     private BufferedImage image = new BufferedImage(256, 240, BufferedImage.TYPE_INT_RGB);
+
+    private Panel panel = new Panel();
 
     // region 常量
     private static final int SCREEN_WIDTH = 256;
@@ -90,8 +92,6 @@ public class Emulator extends JFrame implements PPU.FrameRenderCompletedEventLis
         setMenuBar(menuBar);
     }
 
-    private Panel panel = new Panel();
-
     private final HashMap<Integer, Joypad.ButtonFlag> KEYBOARD_MAPPING = new HashMap() {
         {
             put(KeyEvent.VK_J, Joypad.ButtonFlag.A);
@@ -152,14 +152,14 @@ public class Emulator extends JFrame implements PPU.FrameRenderCompletedEventLis
 //        String romPath = "/nestest.nes";
 //        String romPath = "/Pac-Man.nes";
 //        String romPath = "/Donkey Kong.nes";
-//        String romPath = "/896.nes";
+        String romPath = "/896.nes";
 //        String romPath = "/Contra.nes";
 //        String romPath = "/Contra (USA).nes";
 //        String romPath = "/LoZ.nes";
 //        String romPath = "/cpu_dummy_writes_ppumem.nes";
 //        String romPath = "/Mega Man 2.nes";
 //        String romPath = "/Metroid.nes";
-        String romPath = "/cpu_dummy_writes_oam.nes";
+//        String romPath = "/cpu_dummy_writes_oam.nes";
 //        String romPath = "/palette_pal.nes";
 //        String romPath = "/ppu_2000_glitch.nes";
 //        String romPath = "/IceClimber.nes";
@@ -194,6 +194,26 @@ public class Emulator extends JFrame implements PPU.FrameRenderCompletedEventLis
         }
     }
 
+    public void loop() {
+        while (true) {
+            long start = System.currentTimeMillis();
+            if (!frameRenderCompleted) {
+                cpuBus.clock();
+            } else {
+                long elapsed = System.currentTimeMillis() - start;
+                long wait = 1000 / FPS - elapsed;
+                if (wait > 0) {
+                    try {
+                        Thread.sleep(wait);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                }
+
+                frameRenderCompleted = false;
+            }
+        }
+    }
 
     public void showPatternTableFrame() {
         if (cartridge != null) {
@@ -224,22 +244,18 @@ public class Emulator extends JFrame implements PPU.FrameRenderCompletedEventLis
     }
 
     public void loadRom(String romPath) throws IOException {
-        cartridge = new Cartridge(romPath);
+//        cartridge = new Cartridge(romPath);
+        cartridge.loadRom(romPath);
         System.out.println(cartridge.header);
 
-        System.out.println(cartridge.header);
+//        ppu.addFrameRenderCompletedEventListener(emulator);
+
+        cpuBus.setCpu(cpu);
+        cpuBus.setPpu(ppu);
         cpuBus.setCartridge(cartridge);
-
-        int line = 0;
         cpuBus.reset();
 
-        while (line++ >= 0 && true) {
-            cpuBus.clock();
-
-            if (line >= 400000) {
-//                emulator.displayNameTable();
-            }
-        }
+        loop();
     }
 
     public void openFilePicker()  {
@@ -290,7 +306,6 @@ public class Emulator extends JFrame implements PPU.FrameRenderCompletedEventLis
 
 
         byte[][] background = imageColor[0];
-        byte[][] sprite = imageColor[1];
 
         int startRow = 0, startCol = 0;
 
@@ -332,104 +347,6 @@ public class Emulator extends JFrame implements PPU.FrameRenderCompletedEventLis
 
     private Color fromIndex(int index) {
         return fromRGB(ColorPalette.COLOR_PALETTE[index]);
-    }
-
-    public void displayNameTable() {
-        int[] imageData = ((DataBufferInt) image.getRaster().getDataBuffer()).getData();
-
-        /**
-         * 2KB [2][1024]
-         * 每个 8x8的 Tile 使用1字节来索引，共 32*30=960个Tile 使用960字节
-         * 剩下的64字节是Attribute Table 每个字节控制16个Tile的颜色，每4个田字格Tile 共用 2bit 作为颜色的前两位
-         */
-        byte[][] nameTable = ppu.getNameTable();
-
-        /**
-         * 共8K
-         * [2][256 * 16]
-         * 每个图案占 16 字节（前8字节 bit 0，后8字节 bit 1）
-         */
-        byte[][] patternTable = ppu.getPatternTable();
-
-        /**
-         * [2][960 * 16]
-         * 960 个 tile，每个tile 占 16 字节
-         */
-        byte[][] nameTableColorMap = new byte[2][960 * 16];
-
-        // 填充 nameTableColorMap
-        for (int i = 0; i < 2; i++) {
-            for (int j = 0; j < 960; j++) {
-//                int s = (ppu.ppuRead(0x2000 + 0x0400 * i + j) & 0x00FF) * 16;
-                int backgroundAddress = ppu.getPpuCtrl(PPU.PPUCtrl.BackgroundSelect);
-                int s = (nameTable[i][j] & 0x00FF) * 16;
-                System.arraycopy(patternTable[backgroundAddress], s, nameTableColorMap[i], j * 16, 16);
-            }
-        }
-
-        /**
-         * 2 Background 和 Sprite
-         * 960 每个Name Table有 960个 tile
-         * 64 每个 Tile 8x8 共 64个像素点
-         * 每个像素点的颜色 使用 4bit来表示（实际上是索引了Palettes）
-         * 每个Tile使用了Pattern table的 16字节
-         */
-        byte[][][] imageColor = new byte[2][960][64];
-
-        for (int i = 0; i < 2; i++) {
-            // 读最后64字节作为Attribute Table，1字节控制16个tile
-            byte[] attributeTable = Arrays.copyOfRange(nameTable[i], 960, 1024);
-
-            for (int j = 0; j < 960; j++) { // tile
-                // 读 16 字节
-                byte[] tileData = Arrays.copyOfRange(nameTableColorMap[i], 16 * j, 16 * (j + 1));
-
-                int row = j / 32;
-                int col = j % 32;
-
-                // 4tile x 4tile 的大Tile id
-                int bigTileId = (row / 4) * 8 + col / 4;
-
-//                byte colorByte = ppu.ppuRead(0x2000 + 0x0400 * i + 960 + bigTileId);
-                byte colorByte =  attributeTable[bigTileId];
-
-                int bigTileLeftTopRow = (bigTileId >>> 3) << 2;
-                int bigTileLeftTopCol = (bigTileId & 0x07) << 2;
-
-                // 小tile的offset id (0, 1, 2, 3)
-                int tileOffset = ((row - bigTileLeftTopRow) / 2) * 2 + (col - bigTileLeftTopCol) / 2;
-
-                for (int k = 0; k < 64; k++) {  // 像素点
-                    // bit 0
-                    byte lo = (byte) ((tileData[k / 8] >> (7 - k % 8)) & 0x01);
-
-                    // bit 1
-                    byte hi = (byte) (((tileData[k / 8 + 8] >> (7 - k % 8)) & 0x01) << 1);
-
-                    byte color = (byte) (lo | hi | (((colorByte >>> ((tileOffset) * 2) & 0x03) << 2)));
-
-                    imageColor[i][j][k] = color;
-                }
-            }
-        }
-
-        for (int k = 0; k < 960; k++) { // tile
-            int startRow = (k / 32) * 8;
-            int startCol = (k % 32) * 8;
-            for (int i = 0; i < 64; i++) { // 像素
-                int x = startCol + i % 8;
-                int y = startRow + i / 8;
-                byte color = ppu.ppuRead(0x3F00 + imageColor[0][k][i]);
-                imageData[y * 256 + x] = fromIndex(color).getRGB();
-            }
-        }
-
-        Graphics graphics = this.panel.getGraphics();
-        graphics.drawImage(image,
-                0, 0,
-                CONTENT_WIDTH * CONTENT_RATIO,
-                CONTENT_HEIGHT * CONTENT_RATIO,
-                this.panel);
     }
 
     public void display() {

@@ -105,13 +105,13 @@ public class CPUBus {
         } else if (address >= 0x2000 && address <= 0x3FFF) {
             // 0x2000 - 0x2007 是PPU的寄存器，其余是mirror
             data = ppu.cpuRead(address & 0x0007);
-        } else if (address >= 0x4016 && address <= 0x4017) {
-            // 手柄
-            if (address == 0x4016) {
-                data = joypad1.read();
-            } else if (address == 0x4017) {
-                data = joypad2.read();
-            }
+        } else if (address == 0x4016) {
+            // 手柄1
+            data = joypad1.read();
+        } else if (address == 0x4017) {
+            // 手柄2
+            data = joypad2.read();
+
         } else if (address >= 0x8000 && address <= 0xFFFF) {
             data = cartridge.cpuRead(address);
         }
@@ -135,7 +135,7 @@ public class CPUBus {
 
     public void clock() {
         ppu.clock();
-        apu.clock();
+//        apu.clock();
 
         // PPU 的运行速度是 CPU 的3倍， 同步时钟周期
         if (cycles % 3 == 0) {

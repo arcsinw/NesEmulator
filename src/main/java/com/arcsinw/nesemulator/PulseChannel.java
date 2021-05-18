@@ -8,7 +8,7 @@ import javax.sound.sampled.SourceDataLine;
 /**
  * 脉冲波
  */
-public class PulseChannel {
+public class PulseChannel implements Channel {
     /**
      * 占空比序列
      */
@@ -28,12 +28,21 @@ public class PulseChannel {
 
     private int timer = 0;
 
+    private int lengthCounter = 0;
+
+    private boolean enabled = false;
+
     /**
      * write $4000 or $4004
      * Control Register (write only)
+     * DDLC VVVV
+     * |||| ++++-------------- volume/envelope (V)
+     * |||+ ------------------ constant volume，音量控制（固定音量 或 envelope（包络，描述声音振幅的变化，ADSR - Attack, Decay, Sustain, Release））
+     * ||+- ------------------ envelope loop / length counter halt (L)
+     * ++-- ------------------ duty 占空比
      * @param data
      */
-    public void writeRegister0(int data) {
+    private void writeRegister0(int data) {
         byte byteData = (byte) (data & 0xFFFF);
         duty = DUTY_CYCLES_SEQUENCES[(byteData & 0xC0) >> 6];
     }
@@ -41,9 +50,15 @@ public class PulseChannel {
     /**
      * write $4001 or $4005
      * Ramp Control Register (write only)
+     * EPPP NSSS
+     * |||| |+++-------------- shift
+     * |||| +----------------- negate
+     * |+++ ------------------ period
+     * +--- ------------------ enabled
      * @param data
      */
-    public void writeRegister1(int data) {
+    private void writeRegister1(int data) {
+
     }
 
     /**
@@ -53,7 +68,7 @@ public class PulseChannel {
      * ++++ ++++-------------- period low
      * @param data period low, 8 bit
      */
-    public void writeRegister2(int data) {
+    private void writeRegister2(int data) {
         reload = (reload & 0xFF00) | (data & 0x00FF);
     }
 
@@ -65,14 +80,39 @@ public class PulseChannel {
      * ++++ +----------------- length index
      * @param data
      */
-    public void writeRegister3(int data) {
+    private void writeRegister3(int data) {
         byte byteData = getUnsignedByte(data);
         reload = ((byteData & 0x07) << 8) | (reload & 0x00FF);
         timer = reload;
     }
 
-    public void getOutput() {
+    @Override
+    public double getOutput() {
+        return 0.0d;
+    }
 
+    @Override
+    public void write(int address, int data) {
+        switch (address) {
+            case 0x4000:
+            case 0x4004:
+                writeRegister0(data);
+                break;
+            case 0x4001:
+            case 0x4005:
+                writeRegister1(data);
+                break;
+            case 0x4002:
+            case 0x4006:
+                writeRegister2(data);
+                break;
+            case 0x4003:
+            case 0x4007:
+                writeRegister3(data);
+                break;
+            default:
+                break;
+        }
     }
 
     private byte getUnsignedByte(int data) {
@@ -80,24 +120,6 @@ public class PulseChannel {
     }
 
     public static void main(String[] args) {
-//        byte[] buf = new byte[1];
-//        AudioFormat af = new AudioFormat((float) 44100, 8, 1, true, false);
-//        SourceDataLine sdl = null;
-//        try {
-//            sdl = AudioSystem.getSourceDataLine(af);
-//            sdl.open();
-//            sdl.start();
-//            for (int i = 0; i < 1000 * (float) 44100 / 1000; i++) {
-//                double angle = i / ((float) 44100 / 440) * 2.0 * Math.PI;
-//                buf[0] = (byte) (Math.sin(angle) * 100);
-//                sdl.write(buf, 0, 1);
-//            }
-//            sdl.drain();
-//            sdl.stop();
-//        } catch (LineUnavailableException e) {
-//            e.printStackTrace();
-//        }
-
         try {
             byte[] buffer = new byte[2];
             int frequency = 44100; //44100 sample points per 1 second

@@ -3,6 +3,7 @@ package com.arcsinw.nesemulator;
 import com.arcsinw.nesemulator.mapper.AbstractMapper;
 import com.arcsinw.nesemulator.mapper.MapperFactory;
 
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 
@@ -137,12 +138,10 @@ public class Cartridge {
     }
 
     public void cpuWrite(int address, int data) {
-//        if (address >= 0x8000 && address <= 0xFFFF) {
-//            prg[address & (header.prgBanksCount > 1 ? 0x7FFF : 0x3FFF )] = (byte) data;
-//        }
-
-        if (mapper != null) {
-            mapper.write(address, data);
+        if (address >= 0x8000 && address <= 0xFFFF) {
+            if (mapper != null) {
+                mapper.write(address, data);
+            }
         }
     }
 
@@ -159,12 +158,10 @@ public class Cartridge {
         // if PRGROM is 32KB
         //     CPU Address Bus          PRG ROM
         //     0x8000 -> 0xFFFF: Map    0x0000 -> 0x7FFF
-//        if (address >= 0x8000 && address <= 0xFFFF) {
-//            return prg[address & (header.prgBanksCount > 1 ? 0x7FFF : 0x3FFF)];
-//        }
-
-        if (mapper != null) {
-            return mapper.read(address);
+        if (address >= 0x8000 && address <= 0xFFFF) {
+            if (mapper != null) {
+                return mapper.read(address);
+            }
         }
 
         return 0x00;
@@ -234,8 +231,6 @@ public class Cartridge {
     public Cartridge(String filePath) throws IOException {
 //        InputStream inputStream = new FileInputStream(filePath);
         InputStream inputStream = Cartridge.class.getResourceAsStream(filePath);
-//        URL url = Cartridge.class.getResource("/");
-//        System.out.println(url.getPath());
 
         byte[] headerBytes = new byte[16];
         inputStream.read(headerBytes, 0, 16);
@@ -270,6 +265,86 @@ public class Cartridge {
             mapper.reset();
         }
     }
+
+    public Cartridge() {
+
+    }
+
+    public void loadRom(InputStream inputStream) throws IOException {
+        byte[] headerBytes = new byte[16];
+
+        inputStream.read(headerBytes, 0, 16);
+        header = new Header(headerBytes);
+
+        if (header.trainerFlag) {
+            trainer = new byte[512];
+            inputStream.read(trainer, 0, 512);
+        }
+
+        int prgCount = header.prgBanksCount;
+        prg = new byte[prgCount * 16384];
+        for (int i = 0; i < prgCount; i++) {
+            inputStream.read(prg, i * 16384, 16384);
+        }
+
+        int chrCount = header.chrBanksCount;
+        if (chrCount == 0) {
+            chr = new byte[8192];
+        } else {
+            chr = new byte[chrCount * 8192];
+            for (int i = 0; i < chrCount; i++) {
+                inputStream.read(chr, i * 8192, 8192);
+            }
+        }
+
+        mapper = MapperFactory.getMapper(header.mapperNo);
+        if (mapper != null) {
+            mapper.setPrg(prg);
+            mapper.setChr(chr);
+            mapper.setSram(sram);
+            mapper.reset();
+        }
+    }
+
+    public void loadRom(String filePath) throws IOException {
+//        InputStream inputStream = new FileInputStream(filePath);
+        InputStream inputStream = Cartridge.class.getResourceAsStream(filePath);
+
+        byte[] headerBytes = new byte[16];
+
+        inputStream.read(headerBytes, 0, 16);
+        header = new Header(headerBytes);
+
+        if (header.trainerFlag) {
+            trainer = new byte[512];
+            inputStream.read(trainer, 0, 512);
+        }
+
+        int prgCount = header.prgBanksCount;
+        prg = new byte[prgCount * 16384];
+        for (int i = 0; i < prgCount; i++) {
+            inputStream.read(prg, i * 16384, 16384);
+        }
+
+        int chrCount = header.chrBanksCount;
+        if (chrCount == 0) {
+            chr = new byte[8192];
+        } else {
+            chr = new byte[chrCount * 8192];
+            for (int i = 0; i < chrCount; i++) {
+                inputStream.read(chr, i * 8192, 8192);
+            }
+        }
+
+        mapper = MapperFactory.getMapper(header.mapperNo);
+        if (mapper != null) {
+            mapper.setPrg(prg);
+            mapper.setChr(chr);
+            mapper.setSram(sram);
+            mapper.reset();
+        }
+    }
+
 }
 
 
