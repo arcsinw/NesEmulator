@@ -1,5 +1,6 @@
 # NesEmulator
 
+[![Java CI with Maven](https://github.com/arcsinw/NesEmulator/actions/workflows/maven.yml/badge.svg?branch=master&event=push)](https://github.com/arcsinw/NesEmulator/actions/workflows/maven.yml)
 [![Build Status](https://www.travis-ci.com/arcsinw/NesEmulator.svg?token=3sc2gZEKoGdvh9bzPtyy&branch=master)](https://www.travis-ci.com/arcsinw/NesEmulator)
 
 使用Java编写的NES模拟器
